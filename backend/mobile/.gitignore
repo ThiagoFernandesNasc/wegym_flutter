@@ -1,0 +1,23 @@
+# dependencies
+node_modules/
+
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# native
+android/
+ios/
+
+# env
+.env
+.env.*
+!.env.example
+
+# misc
+*.log
+npm-debug.log*
+yarn-error.log*
+.DS_Store

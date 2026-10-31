@@ -1,0 +1,102 @@
+{
+  "app": {
+    "title": "WEGYM",
+    "description": "Intelligente Trainingsplattform — Fitnessstudio, Cardio und Leistung"
+  },
+  "common": {
+    "brandName": "WEGYM",
+    "loading": "Lädt...",
+    "save": "Speichern",
+    "edit": "Bearbeiten",
+    "cancel": "Abbrechen",
+    "select": "Auswählen",
+    "athlete": "Athlet",
+    "hourAbbr": "h",
+    "minAbbr": "min",
+    "kmUnit": " km",
+    "dash": " —"
+  },
+  "sidebar": {
+    "home": "Start",
+    "modalities": "Aktivitäten",
+    "stats": "Statistiken",
+    "pro": "Wegym Pro",
+    "profile": "Mein Profil",
+    "privacy": "Datenschutz",
+    "logout": "Abmelden",
+    "agenda": "Termine",
+    "myStudents": "Meine Schüler",
+    "addStudent": "Schüler hinzufügen",
+    "openMenu": "Menü öffnen",
+    "closeMenu": "Menü schließen"
+  },
+  "login": {
+    "title": "ANMELDEN",
+    "subtitle": "Bereit für das heutige Training?",
+    "emailLabel": "E-Mail",
+    "passwordLabel": "Passwort",
+    "signIn": "Bei Wegym anmelden",
+    "noAccount": "Noch kein Konto? "
+  },
+  "register": {
+    "title": "Registrierung",
+    "submit": "Registrierung abschließen",
+    "alreadyMember": "Bereits Mitglied? "
+  },
+  "greeting": {
+    "morning": "Guten Morgen",
+    "afternoon": "Guten Nachmittag",
+    "evening": "Guten Abend",
+    "earlyMorning": "Guten Morgen"
+  },
+  "modality": {
+    "gym": "Fitnessstudio",
+    "running": "Laufen",
+    "cycling": "Radfahren",
+    "aerobic": "Cardio",
+    "combat": "Kampfsport",
+    "swimming": "Schwimmen",
+    "walking": "Spazierengehen",
+    "crossfit": "Cross Training",
+    "yoga": "Yoga & Pilates",
+    "hiking": "Wandern",
+    "basketball": "Basketball",
+    "soccer": "Fußball",
+    "tennis": "Tennis",
+    "climbing": "Klettern",
+    "skate": "Skateboard",
+    "functional": "Funktionell",
+    "hiit": "HIIT",
+    "dance": "Tanzen",
+    "rowing": "Rudern",
+    "other": "Andere"
+  },
+  "tutorial": {
+    "skip": "Skip",
+    "next": "Next",
+    "start": "Get Started",
+    "step": "Step {current} of {total}",
+    "athlete": {
+      "step1Title": "Welcome to WEGYM",
+      "step1Desc": "Your smart training platform. Gym, running, cycling, swimming and more — all in one place.",
+      "step2Title": "Smart Workouts",
+      "step2Desc": "Choose from multiple modalities, follow weekly training plans and log every session with sets, reps and loads.",
+      "step3Title": "AI & GPS",
+      "step3Desc": "Use the AI assistant to generate personalized workouts. Enable GPS to track outdoor runs and cycling routes.",
+      "step4Title": "Statistics",
+      "step4Desc": "Track your progress with charts for load volume, heart rate, calories burned and active time.",
+      "step5Title": "Profile & WEGYM PRO",
+      "step5Desc": "Set up your profile, connect smartwatches via Bluetooth and unlock premium features with WEGYM PRO."
+    },
+    "personal": {
+      "step1Title": "Personal Dashboard",
+      "step1Desc": "Welcome to the personal trainer dashboard. Manage students, workout plans and schedules all in one place.",
+      "step2Title": "Manage Students",
+      "step2Desc": "Register new students, view profiles, track history and monitor each student's individual progress.",
+      "step3Title": "Plans & AI",
+      "step3Desc": "Create personalized weekly training plans. Use the AI Copilot to generate optimized workout sheets automatically.",
+      "step4Title": "Evolution",
+      "step4Desc": "Log measurements, weight and observations to track your students' progress over time."
+    }
+  }
+}

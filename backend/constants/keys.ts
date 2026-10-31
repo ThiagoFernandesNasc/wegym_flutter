@@ -1,0 +1,1 @@
+export const MODALITY_STORAGE_KEY = 'wegym-modality-sessions-v1';

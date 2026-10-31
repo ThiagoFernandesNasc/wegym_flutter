@@ -1,0 +1,699 @@
+"use client";
+
+import React, { useEffect, useState, useCallback, useRef } from "react";
+import { createPortal } from "react-dom";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { signOut, useSession } from "next-auth/react";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  PanelLeftClose,
+  PanelLeftOpen,
+  Menu,
+  X,
+  User,
+  LogOut,
+  Dumbbell,
+  BarChart3,
+  Crown,
+  Home,
+  LayoutGrid,
+  ChevronRight,
+  CalendarDays,
+  Users,
+  UserPlus,
+  ShieldCheck,
+  Newspaper,
+  Target,
+  Trophy,
+  BookOpen,
+  CheckCircle,
+} from "lucide-react";
+import { MODALITY_OPTIONS } from "@/constants/modalities";
+import { LanguageSwitcher } from "@/components/i18n/LanguageSwitcher";
+import { useTranslations } from '@/lib/i18n/hook'
+
+const STORAGE_KEY = "wegym-sidebar-collapsed";
+
+export type SidebarState = {
+  collapsed: boolean;
+  setCollapsed: (v: boolean) => void;
+  hydrated: boolean;
+};
+
+export const SidebarContext = React.createContext<SidebarState | null>(null);
+
+export function useSidebar(): SidebarState {
+  const ctx = React.useContext(SidebarContext);
+  if (!ctx) {
+    return { collapsed: false, setCollapsed: () => {}, hydrated: false };
+  }
+  return ctx;
+}
+
+export function SidebarProvider({ children }: { children: React.ReactNode }) {
+  const [collapsed, setCollapsedState] = useState<boolean>(false);
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    const id = window.setTimeout(() => {
+      setHydrated(true);
+      try {
+        if (localStorage.getItem(STORAGE_KEY) === "1") setCollapsedState(true);
+      } catch {
+        // localStorage indisponível
+      }
+    }, 0);
+    return () => window.clearTimeout(id);
+  }, []);
+
+  const setCollapsed = useCallback((v: boolean) => {
+    setCollapsedState(v);
+    try {
+      localStorage.setItem(STORAGE_KEY, v ? "1" : "0");
+    } catch {
+      // localStorage indisponível
+    }
+  }, []);
+
+  const value = React.useMemo<SidebarState>(
+    () => ({ collapsed, setCollapsed, hydrated }),
+    [collapsed, setCollapsed, hydrated],
+  );
+
+  return <SidebarContext.Provider value={value}>{children}</SidebarContext.Provider>;
+}
+
+type SidebarProps = {
+  mobile?: boolean;
+  onClose?: () => void;
+};
+
+export function Sidebar({ mobile = false, onClose }: SidebarProps) {
+  const { collapsed, setCollapsed, hydrated } = useSidebar();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const { data: session, status } = useSession();
+
+  const role = (session?.user as { role?: string } | undefined)?.role;
+  const isPersonal = role === "personal";
+
+  const activeModality = searchParams.get("modality") ?? "gym";
+  const personalView = searchParams.get("view") ?? "home";
+  const isOnTraining = pathname === "/training";
+  const isOnProfile = pathname === "/profile";
+  const isOnStats = pathname === "/stats";
+  const isOnPro = pathname === "/pro";
+  const isOnHome = pathname === "/home";
+  const isOnPersonal = pathname === "/personal";
+  const isOnPersonalHome = isOnPersonal && personalView === "home";
+  const isOnPersonalStudents = isOnPersonal && personalView === "students";
+  const isOnPersonalCreate = isOnPersonal && personalView === "create";
+  const isOnPrivacy = pathname === "/privacy";
+  const isOnFeed = pathname === "/feed";
+  const isOnGoals = pathname === "/goals";
+  const isOnAchievements = pathname === "/achievements";
+  const isOnPrograms = pathname === "/programs";
+  const isOnCheckin = pathname === "/checkin";
+
+
+  const effectiveCollapsed = hydrated ? collapsed : false;
+  const showLabels = mobile ? true : !effectiveCollapsed;
+  const widthClass = mobile
+    ? "w-72"
+    : effectiveCollapsed
+      ? "w-[72px]"
+      : "w-64";
+
+  const [modalitiesOpen, setModalitiesOpen] = useState(false);
+  const [flyoutPos, setFlyoutPos] = useState<{
+    top: number;
+    left: number;
+    maxHeight: number;
+  } | null>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const flyoutRef = useRef<HTMLDivElement>(null);
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const updateFlyoutPos = useCallback(() => {
+    if (!triggerRef.current) return;
+    const rect = triggerRef.current.getBoundingClientRect();
+    const margin = 4;
+    const viewportH = window.innerHeight;
+    const maxHeight = Math.max(240, viewportH - rect.top - 16);
+    setFlyoutPos({
+      top: rect.top,
+      left: rect.right + margin,
+      maxHeight,
+    });
+  }, []);
+
+  const openModalities = useCallback(() => {
+    if (closeTimerRef.current) {
+      clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+    updateFlyoutPos();
+    setModalitiesOpen(true);
+  }, [updateFlyoutPos]);
+
+  const scheduleClose = useCallback(() => {
+    if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+    closeTimerRef.current = setTimeout(() => setModalitiesOpen(false), 180);
+  }, []);
+
+  const toggleModalities = useCallback(() => {
+    if (modalitiesOpen) {
+      setModalitiesOpen(false);
+    } else {
+      openModalities();
+    }
+  }, [modalitiesOpen, openModalities]);
+
+  useEffect(() => {
+    if (!modalitiesOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setModalitiesOpen(false);
+    };
+    const onWindow = () => setModalitiesOpen(false);
+    const onClickOutside = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (
+        flyoutRef.current &&
+        !flyoutRef.current.contains(target) &&
+        triggerRef.current &&
+        !triggerRef.current.contains(target)
+      ) {
+        setModalitiesOpen(false);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("scroll", onWindow, true);
+    window.addEventListener("resize", onWindow);
+    document.addEventListener("mousedown", onClickOutside);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("scroll", onWindow, true);
+      window.removeEventListener("resize", onWindow);
+      document.removeEventListener("mousedown", onClickOutside);
+    };
+  }, [modalitiesOpen]);
+
+  useEffect(() => {
+    return () => {
+      if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+    };
+  }, []);
+
+  const handleSelectModality = (id: string) => {
+    const params = new URLSearchParams();
+    params.set("modality", id);
+    router.push(`/training?${params.toString()}`);
+    setModalitiesOpen(false);
+    if (mobile && onClose) onClose();
+  };
+
+  const handleGoProfile = () => {
+    router.push("/profile");
+    if (mobile && onClose) onClose();
+  };
+
+  const handleNavigate = (path: string) => {
+    router.push(path);
+    if (mobile && onClose) onClose();
+  };
+
+  const handleLogout = async () => {
+    if (mobile && onClose) onClose();
+    await signOut({ callbackUrl: "/" });
+  };
+
+  const { t } = useTranslations()
+
+  return (
+    <aside
+      className={`flex flex-col h-full bg-zinc-950/95 border-r border-white/5 backdrop-blur-xl ${widthClass} transition-[width] duration-200 ease-out`}
+    >
+      <div
+        className={`px-3 py-4 border-b border-white/5 ${
+          showLabels
+            ? "flex items-center justify-between gap-3"
+            : "flex flex-col items-center gap-3"
+        }`}
+      >
+        {showLabels ? (
+          <div className="flex items-center gap-2 min-w-0">
+            <motion.div
+              whileHover={{ rotateY: 16, rotateX: 10, scale: 1.1 }}
+              style={{ transformPerspective: 500, transformStyle: "preserve-3d" }}
+              className="w-9 h-9 bg-orange-600 rounded-xl flex items-center justify-center shrink-0"
+            >
+              <Dumbbell className="text-white w-5 h-5" style={{ transform: "translateZ(14px)" }} />
+            </motion.div>
+            <span className="text-base font-black italic tracking-tighter text-white truncate">
+              {t('common.brandName')}
+            </span>
+          </div>
+        ) : (
+          <motion.div
+            whileHover={{ rotateY: 16, rotateX: 10, scale: 1.1 }}
+            style={{ transformPerspective: 500, transformStyle: "preserve-3d" }}
+            className="w-10 h-10 bg-orange-600 rounded-xl flex items-center justify-center shrink-0 shadow-lg shadow-orange-600/20"
+          >
+            <Dumbbell className="text-white w-5 h-5" style={{ transform: "translateZ(14px)" }} />
+          </motion.div>
+        )}
+
+        {mobile ? (
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label={t('sidebar.closeMenu')}
+            className="w-9 h-9 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center text-zinc-300 cursor-pointer shrink-0"
+          >
+            <X size={18} />
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setCollapsed(!effectiveCollapsed)}
+            aria-label={effectiveCollapsed ? t('sidebar.expandMenu') : t('sidebar.collapseMenu')}
+            title={effectiveCollapsed ? t('sidebar.expandMenu') : t('sidebar.collapseMenu')}
+            className="w-9 h-9 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center text-zinc-300 cursor-pointer shrink-0"
+          >
+            {effectiveCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
+          </button>
+        )}
+      </div>
+
+      <div className="flex-1 overflow-y-auto py-3 px-2 space-y-1 custom-scrollbar">
+        {status === "loading" ? (
+          <SidebarSkeleton showLabels={showLabels} />
+        ) : isPersonal ? (
+          <>
+            <NavItem
+              icon={CalendarDays}
+              label={t('sidebar.agenda')}
+              showLabels={showLabels}
+              active={isOnPersonalHome}
+              onClick={() => handleNavigate("/personal?view=home")}
+            />
+            <NavItem
+              icon={Users}
+              label={t('sidebar.myStudents')}
+              showLabels={showLabels}
+              active={isOnPersonalStudents}
+              onClick={() => handleNavigate("/personal?view=students")}
+            />
+            <NavItem
+              icon={UserPlus}
+              label={t('sidebar.addStudent')}
+              showLabels={showLabels}
+              active={isOnPersonalCreate}
+              onClick={() => handleNavigate("/personal?view=create")}
+            />
+          </>
+        ) : (
+          <nav aria-label={t('sidebar.mainMenu')}>
+            <NavItem
+              icon={Home}
+              label={t('sidebar.home')}
+              showLabels={showLabels}
+              active={isOnHome}
+              onClick={() => handleNavigate("/home")}
+            />
+
+            <div className="h-px bg-white/5 my-2 mx-1" />
+
+            <button
+              ref={triggerRef}
+              type="button"
+              onClick={toggleModalities}
+              onMouseEnter={mobile ? undefined : openModalities}
+              onMouseLeave={mobile ? undefined : scheduleClose}
+              onFocus={mobile ? undefined : openModalities}
+              aria-haspopup="menu"
+              aria-expanded={modalitiesOpen}
+              title={!showLabels ? t('sidebar.modalities') : undefined}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors text-left cursor-pointer ${
+                isOnTraining
+                  ? "bg-orange-600/20 text-white border border-orange-500/30"
+                  : "text-zinc-300 hover:bg-white/5 border border-transparent"
+              } ${showLabels ? "" : "justify-center"}`}
+            >
+              <LayoutGrid
+                size={18}
+                className={`shrink-0 ${
+                  isOnTraining ? "text-orange-500" : "text-zinc-500"
+                }`}
+              />
+              {showLabels && (
+                <>
+                  <span className="text-[11px] font-black uppercase italic truncate flex-1">
+                    {t('sidebar.modalities')}
+                  </span>
+                  <ChevronRight
+                    size={14}
+                    className={`text-zinc-500 shrink-0 transition-transform ${
+                      mobile && modalitiesOpen ? "rotate-90" : ""
+                    }`}
+                  />
+                </>
+              )}
+            </button>
+
+            {mobile && modalitiesOpen && (
+              <div className="mt-1 ml-3 pl-3 border-l border-white/10 space-y-1">
+                {MODALITY_OPTIONS.map((m) => {
+                  const Icon = m.Icon;
+                  const isActive = isOnTraining && activeModality === m.id;
+                  return (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => handleSelectModality(m.id)}
+                      className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-left cursor-pointer transition-colors ${
+                        isActive
+                          ? "bg-orange-600/20 text-white"
+                          : "text-zinc-300 hover:bg-white/5"
+                      }`}
+                    >
+                      <Icon
+                        size={16}
+                        className={`shrink-0 ${
+                          isActive ? "text-orange-500" : "text-zinc-500"
+                        }`}
+                      />
+                      <span className="text-[10px] font-black uppercase italic truncate">
+                        {t(m.tKey)}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            <NavItem
+              icon={Newspaper}
+              label={t('sidebar.feed')}
+              showLabels={showLabels}
+              active={isOnFeed}
+              onClick={() => handleNavigate("/feed")}
+            />
+            <NavItem
+              icon={Target}
+              label={t('sidebar.goals')}
+              showLabels={showLabels}
+              active={isOnGoals}
+              onClick={() => handleNavigate("/goals")}
+            />
+            <NavItem
+              icon={BookOpen}
+              label={t('sidebar.programs')}
+              showLabels={showLabels}
+              active={isOnPrograms}
+              onClick={() => handleNavigate("/programs")}
+            />
+            <NavItem
+              icon={Trophy}
+              label={t('sidebar.achievements')}
+              showLabels={showLabels}
+              active={isOnAchievements}
+              onClick={() => handleNavigate("/achievements")}
+            />
+            <NavItem
+              icon={CheckCircle}
+              label={t('sidebar.checkin')}
+              showLabels={showLabels}
+              active={isOnCheckin}
+              onClick={() => handleNavigate("/checkin")}
+            />
+
+            <NavItem
+              icon={BarChart3}
+              label={t('sidebar.stats')}
+              showLabels={showLabels}
+              active={isOnStats}
+              onClick={() => handleNavigate("/stats")}
+            />
+          </nav>
+        )}
+
+        {status !== "loading" && (
+          <>
+            <div className="h-px bg-white/5 my-2 mx-1" />
+
+            <NavItem
+              icon={Crown}
+              label={t('sidebar.pro')}
+              showLabels={showLabels}
+              active={isOnPro}
+              onClick={() => handleNavigate("/pro")}
+            />
+            <NavItem
+              icon={User}
+              label={t('sidebar.profile')}
+              showLabels={showLabels}
+              active={isOnProfile}
+              onClick={handleGoProfile}
+            />
+            <NavItem
+              icon={ShieldCheck}
+              label={t('sidebar.privacy')}
+              showLabels={showLabels}
+              active={isOnPrivacy}
+              onClick={() => handleNavigate("/privacy")}
+            />
+          </>
+        )}
+      </div>
+
+      <ModalitiesFlyout
+        open={!mobile && !isPersonal && modalitiesOpen}
+        position={flyoutPos}
+        flyoutRef={flyoutRef}
+        activeModality={activeModality}
+        isOnTraining={isOnTraining}
+        onSelect={handleSelectModality}
+        onMouseEnter={openModalities}
+        onMouseLeave={scheduleClose}
+      />
+
+      <div className="border-t border-white/5 p-2 space-y-1">
+        <LanguageSwitcher showLabels={showLabels} />
+        <button
+          type="button"
+          onClick={handleLogout}
+          title={!showLabels ? t('sidebar.logout') : undefined}
+          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-zinc-300 hover:bg-red-500/10 hover:text-red-400 transition-colors text-left cursor-pointer border border-transparent ${
+            showLabels ? "" : "justify-center"
+          }`}
+        >
+          <LogOut size={18} className="shrink-0 text-red-400/80" />
+          {showLabels && (
+            <span className="text-[11px] font-black uppercase italic truncate">
+              {t('sidebar.logout')}
+            </span>
+          )}
+        </button>
+      </div>
+    </aside>
+  );
+}
+
+type NavItemProps = {
+  icon: React.ComponentType<{ size?: number; className?: string }>;
+  label: string;
+  showLabels: boolean;
+  active: boolean;
+  onClick: () => void;
+};
+
+function NavItem({ icon: Icon, label, showLabels, active, onClick }: NavItemProps) {
+  const ariaLabel = !showLabels ? label : undefined;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={ariaLabel}
+      title={!showLabels ? label : undefined}
+      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors text-left cursor-pointer ${
+        active
+          ? "bg-orange-600/20 text-white border border-orange-500/30"
+          : "text-zinc-300 hover:bg-white/5 border border-transparent"
+      } ${showLabels ? "" : "justify-center"}`}
+    >
+      <Icon
+        size={18}
+        className={`shrink-0 ${active ? "text-orange-500" : "text-zinc-500"}`}
+      />
+      {showLabels && (
+        <span className="text-[11px] font-black uppercase italic truncate">
+          {label}
+        </span>
+      )}
+    </button>
+  );
+}
+
+function SidebarSkeleton({ showLabels }: { showLabels: boolean }) {
+  return (
+    <div className="space-y-2">
+      {[0, 1, 2, 3].map((i) => (
+        <div
+          key={i}
+          className={`flex items-center gap-3 px-3 py-2.5 rounded-xl ${
+            showLabels ? "" : "justify-center"
+          }`}
+        >
+          <div className="w-4.5 h-4.5 rounded bg-zinc-800/60 animate-pulse shrink-0" />
+          {showLabels && (
+            <div className="h-3 flex-1 rounded bg-zinc-800/40 animate-pulse" />
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+type ModalitiesFlyoutProps = {
+  open: boolean;
+  position: { top: number; left: number; maxHeight: number } | null;
+  flyoutRef: React.RefObject<HTMLDivElement | null>;
+  activeModality: string;
+  isOnTraining: boolean;
+  onSelect: (id: string) => void;
+  onMouseEnter: () => void;
+  onMouseLeave: () => void;
+};
+
+function ModalitiesFlyout({
+  open,
+  position,
+  flyoutRef,
+  activeModality,
+  isOnTraining,
+  onSelect,
+  onMouseEnter,
+  onMouseLeave,
+}: ModalitiesFlyoutProps) {
+  const { t } = useTranslations();
+  const [mounted] = useState(() => typeof document !== "undefined");
+
+  if (!mounted || typeof document === "undefined") return null;
+
+  return createPortal(
+    <AnimatePresence>
+      {open && position && (
+        <motion.div
+          ref={flyoutRef}
+          key="modalities-flyout"
+          initial={{ opacity: 0, x: -8, scale: 0.98 }}
+          animate={{ opacity: 1, x: 0, scale: 1 }}
+          exit={{ opacity: 0, x: -6, scale: 0.98 }}
+          transition={{ duration: 0.14, ease: "easeOut" }}
+          onMouseEnter={onMouseEnter}
+          onMouseLeave={onMouseLeave}
+          style={{
+            position: "fixed",
+            top: position.top,
+            left: position.left,
+            maxHeight: position.maxHeight,
+            zIndex: 60,
+          }}
+          className="w-90 bg-zinc-950/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl shadow-black/40 p-3 flex flex-col overflow-y-auto"
+          role="menu"
+          aria-label={t('sidebar.modalitiesLabel')}
+        >
+          <p className="text-[9px] font-black uppercase tracking-[0.2em] text-zinc-500 px-2 mb-2">
+{t('sidebar.modalities')}
+          </p>
+          <div className="grid grid-cols-2 gap-1">
+            {MODALITY_OPTIONS.map((m) => {
+              const Icon = m.Icon;
+              const isActive = isOnTraining && activeModality === m.id;
+              return (
+                <button
+                  key={m.id}
+                  type="button"
+                  role="menuitem"
+                  onClick={() => onSelect(m.id)}
+                  className={`flex items-center gap-2 px-2.5 py-2 rounded-xl text-left cursor-pointer transition-colors group border ${
+                    isActive
+                      ? "bg-orange-600/20 text-white border-orange-500/30"
+                      : "text-zinc-300 hover:bg-white/5 border-transparent"
+                  }`}
+                >
+                  <Icon
+                    size={16}
+                    className={`shrink-0 ${
+                      isActive
+                        ? "text-orange-500"
+                        : "text-zinc-500 group-hover:text-zinc-200"
+                    }`}
+                  />
+                    <span className="text-[10px] font-black uppercase italic truncate">
+                    {t(m.tKey)}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>,
+    document.body,
+  );
+}
+
+export function SidebarMobileTrigger({ onOpen }: { onOpen: () => void }) {
+  const { t } = useTranslations()
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      aria-label={t('sidebar.openMenu')}
+      className="lg:hidden fixed top-3 left-3 z-40 w-10 h-10 rounded-xl bg-zinc-900/80 backdrop-blur-md border border-white/10 flex items-center justify-center text-zinc-200 shadow-lg cursor-pointer"
+    >
+      <Menu size={18} />
+    </button>
+  );
+}
+
+export function SidebarMobileDrawer({
+  open,
+  onClose,
+}: {
+  open: boolean;
+  onClose: () => void;
+}) {
+  const { t } = useTranslations()
+  return (
+    <AnimatePresence>
+      {open && (
+        <>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={onClose}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClose(); } }}
+            aria-label={t('sidebar.closeMenu')}
+            className="lg:hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-50"
+          />
+          <motion.div
+            initial={{ x: -320 }}
+            animate={{ x: 0 }}
+            exit={{ x: -320 }}
+            transition={{ type: "tween", duration: 0.25 }}
+            className="lg:hidden fixed inset-y-0 left-0 z-50"
+          >
+            <Sidebar mobile onClose={onClose} />
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
+  );
+}

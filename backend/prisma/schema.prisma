@@ -1,0 +1,664 @@
+generator client {
+  provider   = "prisma-client-js"
+  engineType = "library"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  email        String   @unique @db.VarChar(255)
+  passwordHash String
+  role         UserRole
+
+  termsAcceptedAt   DateTime?
+  privacyAcceptedAt DateTime?
+  dataConsentAt     DateTime?
+
+  resetToken        String?   @unique @db.VarChar(255)
+  resetTokenExpires DateTime?
+
+  markedForDeletionAt DateTime?
+  anonymizedAt        DateTime?
+
+  displayName String? @db.VarChar(255)
+  avatarUrl   String? @db.VarChar(500)
+  bio         String? @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  athlete       Athlete?
+  personal      PersonalTrainer?
+  subscriptions Subscription[]
+  integrations  Integration[]
+
+  messagesSent     Message[]        @relation("SentMessages")
+  messagesReceived Message[]        @relation("ReceivedMessages")
+  goals            Goal[]
+  checkIns         DailyCheckIn[]
+  achievements     UserAchievement[]
+  challengeParts   ChallengeParticipant[]
+  socialPosts      SocialPost[]
+  socialLikes      SocialLike[]
+  socialComments   SocialComment[]
+  friendships      Friendship[]     @relation("Requester")
+  friendsAdded     Friendship[]     @relation("Addressee")
+  createdChallenges Challenge[]
+  programs         Program[]
+  foodItems        FoodItem[]
+  mealLogs         MealLog[]
+  dietPlans        DietPlan[]
+  athleteAppointments Appointment[] @relation("AthleteAppointments")
+  personalAppointments Appointment[] @relation("PersonalAppointments")
+  appointmentSlots AppointmentSlot[]
+  auditLogs         AuditLog[]
+
+  @@index([role])
+  @@map("users")
+}
+
+model Athlete {
+  id         String  @id @default(uuid()) @db.Uuid
+  userId     String  @unique @db.Uuid
+  personalId String? @db.Uuid
+
+  name  String @db.VarChar(255)
+  cpf   String @unique @db.VarChar(14)
+  cep   String @db.VarChar(9)
+  city  String @db.VarChar(100)
+  state String @db.Char(2)
+
+  age Int     @db.SmallInt
+  sex UserSex
+
+  heightCm Int   @db.SmallInt
+  weightKg Float
+
+  experienceLevel ExperienceLevel
+
+  injury           String?
+  healthIssues     String?
+  medications      String?
+  phone            String? @db.VarChar(20)
+  emergencyContact String? @db.VarChar(255)
+  objective        String? @db.VarChar(255)
+  observations     String? @db.Text
+  availableDays    String? @db.VarChar(100)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user     User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  personal PersonalTrainer? @relation(fields: [personalId], references: [id], onDelete: SetNull)
+
+  trainingPlans   TrainingPlan[]
+  progressEntries ProgressEntry[]
+  weeklyClasses   WeeklyClass[]
+  workoutSessions WorkoutSession[]
+  gpsSessions     GpsSession[]
+
+  @@index([personalId])
+  @@index([state, city])
+  @@index([createdAt])
+  @@map("athletes")
+}
+
+model PersonalTrainer {
+  id     String @id @default(uuid()) @db.Uuid
+  userId String @unique @db.Uuid
+
+  name String @db.VarChar(255)
+  cref String @unique @db.VarChar(20)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  athletes Athlete[]
+
+  @@map("personal_trainers")
+}
+
+model TrainingPlan {
+  id        String  @id @default(uuid()) @db.Uuid
+  athleteId String  @db.Uuid
+  day       WeekDay
+
+  athlete   Athlete    @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+  exercises Exercise[]
+
+  @@index([athleteId, day])
+  @@map("training_plans")
+}
+
+model Exercise {
+  id   String @id @default(uuid()) @db.Uuid
+  name String @db.VarChar(255)
+  sets String @db.VarChar(10)
+  reps String @db.VarChar(10)
+  load String @db.VarChar(20)
+
+  planId String       @db.Uuid
+  plan   TrainingPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@index([planId])
+  @@map("exercises")
+}
+
+model ProgressEntry {
+  id        String @id @default(uuid()) @db.Uuid
+  athleteId String @db.Uuid
+
+  date       DateTime
+  weight     Float
+  muscleMass Float?
+  bodyFat    Float?
+  note       String?
+
+  athlete Athlete @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+
+  @@index([athleteId, date])
+  @@map("progress_entries")
+}
+
+model WeeklyClass {
+  id        String @id @default(uuid()) @db.Uuid
+  athleteId String @db.Uuid
+
+  day    WeekDay
+  date   DateTime
+  time   String      @db.VarChar(5)
+  type   String      @db.VarChar(50)
+  status ClassStatus
+
+  athlete Athlete @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+
+  @@index([athleteId, date])
+  @@map("weekly_classes")
+}
+
+enum WeekDay {
+  Seg
+  Ter
+  Qua
+  Qui
+  Sex
+  Sab
+  Dom
+}
+
+model Integration {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  provider  String   @db.VarChar(50) // strava, google_fit
+  enabled   Boolean  @default(true)
+  syncEnabled Boolean @default(true)
+
+  // OAuth tokens
+  accessToken  String  @db.Text
+  refreshToken String? @db.Text
+  tokenType    String? @db.VarChar(50)
+  expiresAt    DateTime?
+  scope        String? @db.VarChar(255)
+
+  // Provider-specific metadata (JSON)
+  providerData Json?
+
+  lastSyncAt  DateTime?
+  nextSyncAt  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, provider])
+  @@index([userId])
+  @@index([provider])
+  @@map("integrations")
+}
+
+model Subscription {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  plan      String    @db.VarChar(50)
+  status    String    @db.VarChar(20) // active, inactive, cancelled
+  paymentId String?   @unique @db.VarChar(255)
+  startDate DateTime  @default(now())
+  endDate   DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@index([paymentId])
+  @@map("subscriptions")
+}
+
+model WorkoutSession {
+  id              String   @id @default(uuid()) @db.Uuid
+  athleteId       String   @db.Uuid
+  modality        String   @db.VarChar(50)
+  durationSec     Int
+  distanceKm      Float?
+  avgPaceSecPerKm Int?
+  steps           Int?
+  calories        Float?
+  avgHeartRate    Int?
+  completedAt     DateTime @default(now())
+  exercises       Json? // exercises done in this session
+  createdAt       DateTime @default(now())
+
+  athlete Athlete @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+
+  @@index([athleteId, completedAt])
+  @@map("workout_sessions")
+}
+
+model GpsSession {
+  id              String   @id @default(uuid()) @db.Uuid
+  athleteId       String   @db.Uuid
+  modality        String   @db.VarChar(50)
+  distanceKm      Float
+  durationSec     Int
+  avgPaceSecPerKm Int?
+  steps           Int?
+  coordinates     Json? // array of GpsCoordinate
+  startLat        Float?
+  startLng        Float?
+  endLat          Float?
+  endLng          Float?
+  completedAt     DateTime @default(now())
+  createdAt       DateTime @default(now())
+
+  athlete Athlete @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+
+  @@index([athleteId, completedAt])
+  @@map("gps_sessions")
+}
+
+// === ENGAGEMENT ===
+model Message {
+  id        String   @id @default(uuid()) @db.Uuid
+  senderId  String   @db.Uuid
+  receiverId String  @db.Uuid
+  text      String   @db.Text
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  sender   User @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver User @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@index([senderId, receiverId])
+  @@index([receiverId, read])
+  @@map("messages")
+}
+
+model Goal {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @db.Uuid
+  title      String   @db.VarChar(255)
+  description String? @db.Text
+  category   String   @db.VarChar(50) // workout, weight, nutrition, cardio, custom
+  metric     String   @db.VarChar(100) // kg, sessions, km, minutes, etc.
+  targetValue Float
+  currentValue Float  @default(0)
+  startDate  DateTime @default(now())
+  endDate    DateTime
+  status     String   @default("active") @db.VarChar(20) // active, completed, cancelled
+  completedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@map("goals")
+}
+
+model DailyCheckIn {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  date      DateTime @default(now())
+  mood      Int      @db.SmallInt // 1-5
+  energy    Int      @db.SmallInt // 1-5
+  sleepHours Float?
+  note      String?  @db.Text
+  trained   Boolean  @default(false)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@index([userId, date])
+  @@map("daily_check_ins")
+}
+
+// === CONTENT ===
+model Program {
+  id          String   @id @default(uuid()) @db.Uuid
+  title       String   @db.VarChar(255)
+  description String?  @db.Text
+  category    String   @db.VarChar(50) // gym, running, weight_loss, etc.
+  level       String   @db.VarChar(20) // iniciante, intermediario, avancado
+  durationWeeks Int    @default(4)
+  daysPerWeek  Int     @default(3)
+  featured    Boolean  @default(false)
+  authorId    String?  @db.Uuid
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  author    User?             @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  exercises ProgramExercise[]
+
+  @@index([category, level])
+  @@index([featured])
+  @@map("programs")
+}
+
+model ProgramExercise {
+  id        String @id @default(uuid()) @db.Uuid
+  programId String @db.Uuid
+  week      Int
+  day       Int
+  name      String @db.VarChar(255)
+  sets      String? @db.VarChar(10)
+  reps      String? @db.VarChar(10)
+  duration  String? @db.VarChar(20) // for cardio: "20min", "5km"
+  notes     String? @db.Text
+  order     Int    @default(0)
+
+  program Program @relation(fields: [programId], references: [id], onDelete: Cascade)
+
+  @@index([programId, week, day])
+  @@map("program_exercises")
+}
+
+// === GAMIFICATION ===
+model Achievement {
+  id          String @id @default(uuid()) @db.Uuid
+  key         String @unique @db.VarChar(100) // first_workout, streak_7, distance_100
+  title       String @db.VarChar(255)
+  description String @db.Text
+  icon        String @db.VarChar(50)
+  category    String @db.VarChar(50) // workouts, distance, streak, social
+  criteria    Json   // { "type": "total_workouts", "value": 1 }
+  xpReward    Int    @default(10)
+
+  userAchievements UserAchievement[]
+
+  @@map("achievements")
+}
+
+model UserAchievement {
+  id            String   @id @default(uuid()) @db.Uuid
+  userId        String   @db.Uuid
+  achievementId String   @db.Uuid
+  earnedAt      DateTime @default(now())
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievement Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, achievementId])
+  @@map("user_achievements")
+}
+
+model Challenge {
+  id          String   @id @default(uuid()) @db.Uuid
+  title       String   @db.VarChar(255)
+  description String?  @db.Text
+  type        String   @db.VarChar(50) // distance, workouts, calories, custom
+  goalValue   Float
+  startDate   DateTime
+  endDate     DateTime
+  creatorId   String?  @db.Uuid
+  createdAt   DateTime @default(now())
+
+  creator      User?                  @relation(fields: [creatorId], references: [id], onDelete: SetNull)
+  participants ChallengeParticipant[]
+
+  @@index([startDate, endDate])
+  @@map("challenges")
+}
+
+model ChallengeParticipant {
+  id          String   @id @default(uuid()) @db.Uuid
+  challengeId String   @db.Uuid
+  userId      String   @db.Uuid
+  currentValue Float   @default(0)
+  joinedAt    DateTime @default(now())
+
+  challenge Challenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([challengeId, userId])
+  @@map("challenge_participants")
+}
+
+model SocialPost {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  text      String?  @db.Text
+  workoutId String?  @db.Uuid
+  imageUrl  String?  @db.VarChar(500)
+  createdAt DateTime @default(now())
+
+  user   User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  likes  SocialLike[]
+  comments SocialComment[]
+
+  @@index([userId, createdAt])
+  @@map("social_posts")
+}
+
+model SocialLike {
+  id      String   @id @default(uuid()) @db.Uuid
+  postId  String   @db.Uuid
+  userId  String   @db.Uuid
+  createdAt DateTime @default(now())
+
+  post SocialPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
+  @@map("social_likes")
+}
+
+model SocialComment {
+  id        String   @id @default(uuid()) @db.Uuid
+  postId    String   @db.Uuid
+  userId    String   @db.Uuid
+  text      String   @db.Text
+  createdAt DateTime @default(now())
+
+  post SocialPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([postId, createdAt])
+  @@map("social_comments")
+}
+
+model Friendship {
+  id         String   @id @default(uuid()) @db.Uuid
+  requesterId String  @db.Uuid
+  addresseeId String  @db.Uuid
+  status     String   @default("pending") @db.VarChar(20) // pending, accepted, blocked
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  requester User @relation("Requester", fields: [requesterId], references: [id], onDelete: Cascade)
+  addressee User @relation("Addressee", fields: [addresseeId], references: [id], onDelete: Cascade)
+
+  @@unique([requesterId, addresseeId])
+  @@index([addresseeId, status])
+  @@map("friendships")
+}
+
+// === NUTRITION ===
+model FoodItem {
+  id          String @id @default(uuid()) @db.Uuid
+  name        String @db.VarChar(255)
+  brand       String? @db.VarChar(255)
+  servingSize Float
+  servingUnit String @db.VarChar(20) // g, ml, unit
+  calories    Float
+  proteinG    Float
+  carbsG      Float
+  fatG        Float
+  fiberG      Float?
+  sodiumMg    Float?
+  category    String @db.VarChar(50) // fruit, vegetable, meat, dairy, grain, etc.
+  isPublic    Boolean @default(true)
+  userId      String? @db.Uuid
+  createdAt   DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  mealFoods MealFood[]
+
+  @@index([name])
+  @@index([category])
+  @@map("food_items")
+}
+
+model MealLog {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  date      DateTime @default(now())
+  type      String   @db.VarChar(20) // breakfast, lunch, dinner, snack
+  notes     String?  @db.Text
+  createdAt DateTime @default(now())
+
+  user   User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  foods  MealFood[]
+  totals MealTotals?
+
+  @@index([userId, date])
+  @@map("meal_logs")
+}
+
+model MealFood {
+  id       String @id @default(uuid()) @db.Uuid
+  mealId   String @db.Uuid
+  foodId   String @db.Uuid
+  amount   Float  @default(1) // multiplier of servingSize
+  createdAt DateTime @default(now())
+
+  meal MealLog  @relation(fields: [mealId], references: [id], onDelete: Cascade)
+  food FoodItem @relation(fields: [foodId], references: [id], onDelete: Cascade)
+
+  @@index([mealId])
+  @@map("meal_foods")
+}
+
+model MealTotals {
+  id         String @id @default(uuid()) @db.Uuid
+  mealId     String @unique @db.Uuid
+  calories   Float  @default(0)
+  proteinG   Float  @default(0)
+  carbsG     Float  @default(0)
+  fatG       Float  @default(0)
+  fiberG     Float  @default(0)
+
+  meal MealLog @relation(fields: [mealId], references: [id], onDelete: Cascade)
+  @@map("meal_totals")
+}
+
+model DietPlan {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @db.Uuid
+  title       String   @db.VarChar(255)
+  description String?  @db.Text
+  dailyCalories Float?
+  proteinGoal  Float?
+  carbsGoal    Float?
+  fatGoal      Float?
+  startDate   DateTime @default(now())
+  endDate     DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("diet_plans")
+}
+
+// === SCHEDULING ===
+model Appointment {
+  id          String   @id @default(uuid()) @db.Uuid
+  athleteId   String   @db.Uuid
+  personalId  String   @db.Uuid
+  date        DateTime
+  durationMin Int      @default(60)
+  type        String   @db.VarChar(50) // training, evaluation, consultation
+  status      String   @default("pending") @db.VarChar(20) // pending, confirmed, completed, cancelled
+  notes       String?  @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  athlete  User @relation("AthleteAppointments", fields: [athleteId], references: [id], onDelete: Cascade)
+  personal User @relation("PersonalAppointments", fields: [personalId], references: [id], onDelete: Cascade)
+
+  @@index([personalId, date])
+  @@index([athleteId, date])
+  @@map("appointments")
+}
+
+model AppointmentSlot {
+  id          String   @id @default(uuid()) @db.Uuid
+  personalId  String   @db.Uuid
+  date        DateTime
+  startTime   String   @db.VarChar(5) // "08:00"
+  endTime     String   @db.VarChar(5) // "09:00"
+  available   Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  personal User @relation(fields: [personalId], references: [id], onDelete: Cascade)
+
+  @@index([personalId, date])
+  @@map("appointment_slots")
+}
+
+enum ClassStatus {
+  confirmed
+  pending
+  canceled
+}
+
+enum UserRole {
+  atleta
+  personal
+}
+
+enum UserSex {
+  masculino
+  feminino
+  outro
+}
+
+enum ExperienceLevel {
+  iniciante
+  intermediario
+  avancado
+}
+
+model AuditLog {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  action    String
+  metadata  String?
+  ip        String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([action])
+  @@map("audit_logs")
+}

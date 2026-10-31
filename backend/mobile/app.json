@@ -1,0 +1,78 @@
+{
+  "expo": {
+    "name": "WEGYM",
+    "slug": "wegym",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "wegym",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#09090b"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "app.wegym.mobile",
+      "infoPlist": {
+        "NSHealthShareUsageDescription": "O WEGYM usa seus dados de saúde para sincronizar treinos e batimentos cardíacos.",
+        "NSHealthUpdateUsageDescription": "O WEGYM envia treinos para o Health para centralizar seus dados.",
+        "NSLocationWhenInUseUsageDescription": "O WEGYM usa localização para mapear corridas e ciclismo.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "O WEGYM usa localização em segundo plano para tracking GPS.",
+        "NSBluetoothAlwaysUsageDescription": "O WEGYM usa Bluetooth para conectar monitores cardíacos.",
+        "NSBluetoothPeripheralUsageDescription": "O WEGYM usa Bluetooth para conectar monitores cardíacos.",
+        "UIBackgroundModes": [
+          "location",
+          "fetch",
+          "remote-notification"
+        ]
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#09090b"
+      },
+      "package": "app.wegym.mobile",
+      "permissions": [
+        "android.permission.health.READ_HEART_RATE",
+        "android.permission.health.READ_STEPS",
+        "android.permission.health.READ_DISTANCE",
+        "android.permission.health.READ_CALORIES",
+        "android.permission.health.READ_SLEEP",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_BACKGROUND_LOCATION",
+        "android.permission.BLUETOOTH",
+        "android.permission.BLUETOOTH_SCAN",
+        "android.permission.BLUETOOTH_CONNECT",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.VIBRATE",
+        "android.permission.WAKE_LOCK"
+      ]
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-notifications",
+      "expo-location",
+      "react-native-health-connect",
+      [
+        "react-native-health",
+        {
+          "isHealthDataExchangeEnabled": true
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "minSdkVersion": 26
+          }
+        }
+      ]
+    ]
+  }
+}
