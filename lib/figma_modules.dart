@@ -405,18 +405,16 @@ class _FigmaModulePageState extends State<FigmaModulePage> {
         {
           'conversations': [
             {
-              'id': 'msg1',
-              'name': 'Carlos Personal',
-              'lastMessage': 'Seu treino da semana est\u00e1 atualizado.',
-              'date': 'Hoje, 09:42',
-              'unread': '1 mensagem',
+              'receiver': {
+                'id': 'preview-coach',
+                'displayName': 'Carlos Personal',
+              },
             },
             {
-              'id': 'msg2',
-              'name': 'Mariana Costa',
-              'lastMessage': 'Obrigada pelo acompanhamento!',
-              'date': 'Ontem, 18:10',
-              'unread': 'Lida',
+              'receiver': {
+                'id': 'preview-friend',
+                'displayName': 'Mariana Costa',
+              },
             },
           ],
           'unreadCount': 1,
@@ -495,6 +493,35 @@ class _FigmaModulePageState extends State<FigmaModulePage> {
             'name': 'Gordura corporal',
             'value': '19,0%',
             'date': 'H\u00e1 30 dias',
+          },
+        ],
+      ],
+      'Check-in' => [
+        {'today': null, 'streak': 4},
+        {
+          'checkIns': [
+            {'date': '2026-10-30', 'mood': 4, 'energy': 4, 'sleepHours': 7.5},
+          ],
+          'streak': 4,
+        },
+      ],
+      'Amigos' => [
+        [
+          {
+            'id': 'preview-friend',
+            'name': 'Mariana Costa',
+            'status': 'accepted',
+          },
+        ],
+      ],
+      'Aulas' => [
+        [
+          {
+            'id': 'class-1',
+            'date': '2026-11-03',
+            'time': '18:00',
+            'type': 'Musculação',
+            'status': 'scheduled',
           },
         ],
       ],
@@ -1821,6 +1848,24 @@ class _FigmaModulePageState extends State<FigmaModulePage> {
   }
 
   Future<void> _openChat(String userId, String name) async {
+    if (const bool.fromEnvironment('PREVIEW_DASHBOARD')) {
+      setState(() {
+        _activeChatUserId = userId;
+        _activeChatName = name;
+        _activeChatMessages = [
+          {
+            'id': 'preview-history-$userId',
+            'senderId': userId,
+            'receiverId': _currentUserId.isEmpty
+                ? 'preview-athlete'
+                : _currentUserId,
+            'text': 'Olá! Esta é uma conversa de demonstração.',
+          },
+        ];
+        _notice = 'Conversa aberta na prévia.';
+      });
+      return;
+    }
     setState(() {
       _activeChatUserId = userId;
       _activeChatName = name;
@@ -1843,6 +1888,23 @@ class _FigmaModulePageState extends State<FigmaModulePage> {
     final receiverId = _activeChatUserId;
     final text = _message.text.trim();
     if (receiverId == null || receiverId.isEmpty || text.isEmpty || _busy) {
+      return;
+    }
+    if (const bool.fromEnvironment('PREVIEW_DASHBOARD')) {
+      final next = List<dynamic>.from(_activeChatMessages)
+        ..add({
+          'id': 'preview-message-${DateTime.now().microsecondsSinceEpoch}',
+          'senderId': _currentUserId.isEmpty
+              ? 'preview-athlete'
+              : _currentUserId,
+          'receiverId': receiverId,
+          'text': text,
+        });
+      setState(() {
+        _activeChatMessages = next;
+        _message.clear();
+        _notice = 'Mensagem adicionada nesta prévia.';
+      });
       return;
     }
     setState(() => _busy = true);
@@ -2535,6 +2597,36 @@ class _FigmaModulePageState extends State<FigmaModulePage> {
       _showInfo('Informe as horas de sono (0 a 24).');
       return;
     }
+    if (const bool.fromEnvironment('PREVIEW_DASHBOARD')) {
+      final next = List<dynamic>.from(_snapshotData);
+      final today = {
+        'date': DateTime.now().toIso8601String(),
+        'mood': mood.round(),
+        'energy': energy.round(),
+        'sleepHours': sleep,
+      };
+      final history = next.length > 1 && next[1] is Map
+          ? Map<String, dynamic>.from(_map(next[1]))
+          : <String, dynamic>{};
+      final records = List<dynamic>.from(
+        _list(history['checkIns'] ?? history['history']),
+      )..insert(0, today);
+      history['checkIns'] = records;
+      history['streak'] = _text(history['streak']).isEmpty
+          ? 1
+          : (int.tryParse(_text(history['streak'])) ?? 0) + 1;
+      while (next.length < 2) {
+        next.add({});
+      }
+      next[0] = today;
+      next[1] = history;
+      setState(() {
+        _snapshotData = next;
+        _data = Future.value(next);
+        _notice = 'Check-in salvo nesta prévia.';
+      });
+      return;
+    }
     await _run(
       () => Api.post('/api/checkin', {
         'mood': mood.round(),
@@ -2550,6 +2642,28 @@ class _FigmaModulePageState extends State<FigmaModulePage> {
   Future<void> _addFriend() async {
     final id = await _prompt('Adicionar amigo', 'ID da pessoa');
     if (id != null && id.trim().isNotEmpty) {
+      if (const bool.fromEnvironment('PREVIEW_DASHBOARD')) {
+        final next = List<dynamic>.from(_snapshotData);
+        final friends = List<dynamic>.from(
+          _list(next.isNotEmpty ? next[0] : const []),
+        );
+        friends.add({
+          'id': id.trim(),
+          'name': 'Conexão de demonstração',
+          'status': 'pending',
+        });
+        if (next.isEmpty) {
+          next.add(friends);
+        } else {
+          next[0] = friends;
+        }
+        setState(() {
+          _snapshotData = next;
+          _data = Future.value(next);
+          _notice = 'Solicitação adicionada nesta prévia.';
+        });
+        return;
+      }
       await _run(
         () => Api.post('/api/friends', {'addresseeId': id.trim()}),
         'Solicitação enviada.',
@@ -2600,7 +2714,30 @@ class _FigmaModulePageState extends State<FigmaModulePage> {
 
   Future<void> _createProgram() async {
     if (const bool.fromEnvironment('PREVIEW_DASHBOARD')) {
-      _showInfo('A criação de programas exige conexão com o backend.');
+      final title = await _prompt('Novo programa', 'Título do programa');
+      if (title == null || title.trim().isEmpty) return;
+      final next = List<dynamic>.from(_snapshotData);
+      final programs = List<dynamic>.from(
+        _list(next.length > 1 ? next[1] : const []),
+      );
+      programs.add({
+        'id': 'preview-program-${DateTime.now().microsecondsSinceEpoch}',
+        'title': title.trim(),
+        'description': 'Programa criado nesta prévia.',
+        'category': 'gym',
+        'level': 'iniciante',
+        'durationWeeks': 4,
+        'daysPerWeek': 3,
+      });
+      while (next.length < 2) {
+        next.add([]);
+      }
+      next[1] = programs;
+      setState(() {
+        _snapshotData = next;
+        _data = Future.value(next);
+        _notice = 'Programa criado nesta prévia.';
+      });
       return;
     }
     final title = await _prompt('Novo programa', 'Título do programa');
@@ -2647,6 +2784,28 @@ class _FigmaModulePageState extends State<FigmaModulePage> {
     final n = double.tryParse(weight.replaceAll(',', '.'));
     if (n == null) {
       _showInfo('Informe o peso em kg.');
+      return;
+    }
+    if (const bool.fromEnvironment('PREVIEW_DASHBOARD')) {
+      final next = List<dynamic>.from(_snapshotData);
+      final measurements = List<dynamic>.from(
+        _list(next.isNotEmpty ? next[0] : const []),
+      );
+      measurements.insert(0, {
+        'id': 'preview-measurement-${DateTime.now().microsecondsSinceEpoch}',
+        'name': 'Peso',
+        'value': '${n.toStringAsFixed(1)} kg',
+        'date': 'Agora',
+      });
+      while (next.length < 3) {
+        next.add([]);
+      }
+      next[0] = measurements;
+      setState(() {
+        _snapshotData = next;
+        _data = Future.value(next);
+        _notice = 'Avaliação registrada nesta prévia.';
+      });
       return;
     }
     await _run(

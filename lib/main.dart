@@ -834,42 +834,48 @@ class _LoginPageState extends State<LoginPage> {
                 ),
               ),
               const SizedBox(height: 5),
-              Theme(
-                data: Theme.of(
-                  context,
-                ).copyWith(dividerColor: Colors.transparent),
-                child: ExpansionTile(
-                  tilePadding: const EdgeInsets.symmetric(horizontal: 4),
-                  childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-                  leading: const Icon(
-                    Icons.desktop_windows_outlined,
-                    color: softText,
-                    size: 16,
-                  ),
-                  title: const Text(
-                    'Primeiro acesso na academia?',
-                    style: TextStyle(
+              Material(
+                color: Colors.transparent,
+                borderRadius: BorderRadius.circular(12),
+                child: Theme(
+                  data: Theme.of(
+                    context,
+                  ).copyWith(dividerColor: Colors.transparent),
+                  child: ExpansionTile(
+                    tilePadding: const EdgeInsets.symmetric(horizontal: 4),
+                    childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                    leading: const Icon(
+                      Icons.desktop_windows_outlined,
                       color: softText,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w800,
+                      size: 16,
                     ),
+                    title: const Text(
+                      'Primeiro acesso na academia?',
+                      style: TextStyle(
+                        color: softText,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    children: [
+                      const Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          'Crie seu perfil para começar a usar o WeGYM.',
+                          style: TextStyle(color: softText, fontSize: 10),
+                        ),
+                      ),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton(
+                          onPressed: _busy
+                              ? null
+                              : () => _setRegisterMode(true),
+                          child: const Text('CRIAR CONTA'),
+                        ),
+                      ),
+                    ],
                   ),
-                  children: [
-                    const Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        'Crie seu perfil para começar a usar o WeGYM.',
-                        style: TextStyle(color: softText, fontSize: 10),
-                      ),
-                    ),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: TextButton(
-                        onPressed: _busy ? null : () => _setRegisterMode(true),
-                        child: const Text('CRIAR CONTA'),
-                      ),
-                    ),
-                  ],
                 ),
               ),
             ],
@@ -2070,30 +2076,34 @@ class _DesktopSidebar extends StatelessWidget {
                     .where((route) => route.page != 7 || personalAccount)
                     .map((route) {
                       final selected = route.page == selectedIndex;
-                      return ListTile(
-                        dense: true,
-                        minLeadingWidth: 24,
-                        selected: selected,
-                        selectedTileColor: stitchSurfaceHigh,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(9),
-                        ),
-                        leading: Icon(
-                          route.icon,
-                          size: 17,
-                          color: selected ? accent : softText,
-                        ),
-                        title: Text(
-                          route.label,
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: selected ? lightText : softText,
-                            fontWeight: selected
-                                ? FontWeight.w800
-                                : FontWeight.w500,
+                      return Material(
+                        color: Colors.transparent,
+                        borderRadius: BorderRadius.circular(9),
+                        child: ListTile(
+                          dense: true,
+                          minLeadingWidth: 24,
+                          selected: selected,
+                          selectedTileColor: stitchSurfaceHigh,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(9),
                           ),
+                          leading: Icon(
+                            route.icon,
+                            size: 17,
+                            color: selected ? accent : softText,
+                          ),
+                          title: Text(
+                            route.label,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: selected ? lightText : softText,
+                              fontWeight: selected
+                                  ? FontWeight.w800
+                                  : FontWeight.w500,
+                            ),
+                          ),
+                          onTap: () => onSelected(route.page),
                         ),
-                        onTap: () => onSelected(route.page),
                       );
                     })
                     .toList(),
@@ -2238,7 +2248,8 @@ class DashboardPage extends StatelessWidget {
 }
 
 class HeroCard extends StatelessWidget {
-  const HeroCard({super.key, 
+  const HeroCard({
+    super.key,
     required this.name,
     required this.count,
     required this.onStart,
@@ -2300,7 +2311,14 @@ class HeroCard extends StatelessWidget {
 }
 
 class MetricCard extends StatelessWidget {
-  const MetricCard(this.title, this.value, this.unit, this.icon, this.tint, {super.key});
+  const MetricCard(
+    this.title,
+    this.value,
+    this.unit,
+    this.icon,
+    this.tint, {
+    super.key,
+  });
   final String title, value, unit;
   final IconData icon;
   final Color tint;
@@ -2350,7 +2368,11 @@ class MetricCard extends StatelessWidget {
 }
 
 class SessionsCard extends StatelessWidget {
-  const SessionsCard({super.key, required this.sessions, required this.onStart});
+  const SessionsCard({
+    super.key,
+    required this.sessions,
+    required this.onStart,
+  });
   final List<Map<String, dynamic>> sessions;
   final VoidCallback onStart;
   @override

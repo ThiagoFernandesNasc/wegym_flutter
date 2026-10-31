@@ -49,7 +49,34 @@ class FigmaDashboard extends StatelessWidget {
 
   Widget _nav(String label, IconData icon, int index, ValueChanged<int> tap, bool selected) {
     if (index == 7 && !personalAccount) return const SizedBox.shrink();
-    return Padding(padding:const EdgeInsets.only(bottom:4),child:ListTile(dense:true,shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(10)),selected:selected,selectedTileColor:stitchSurfaceHigh,leading:Icon(icon,size:17,color:selected?_peach:_muted),title:Text(label,style:TextStyle(fontSize:12,color:selected?_peach:_muted)),onTap:()=>tap(index)));
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(10),
+        child: ListTile(
+          dense: true,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          selected: selected,
+          selectedTileColor: stitchSurfaceHigh,
+          leading: Icon(
+            icon,
+            size: 17,
+            color: selected ? _peach : _muted,
+          ),
+          title: Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              color: selected ? _peach : _muted,
+            ),
+          ),
+          onTap: () => tap(index),
+        ),
+      ),
+    );
   }
 }
 
@@ -165,7 +192,6 @@ String _duration(double v){final s=v.round().clamp(0,999999999),h=s~/3600,m=(s%3
 String _key(DateTime d)=>'${d.year}-${d.month.toString().padLeft(2,'0')}-${d.day.toString().padLeft(2,'0')}';
 Map<String,dynamic>? _today(List<Map<String,dynamic>> plans){const days=['seg','ter','qua','qui','sex','sab','dom'];final today=days[DateTime.now().weekday-1];for(final p in plans){if((p['day']??'').toString().toLowerCase()==today)return p;}return null;}
 class _LoadError extends StatelessWidget{const _LoadError({required this.message,required this.retry});final String message;final Future<void> Function() retry;@override Widget build(BuildContext c)=>Center(child:Padding(padding:const EdgeInsets.all(24),child:Column(mainAxisSize:MainAxisSize.min,children:[const Icon(Icons.cloud_off_outlined,color:_peach,size:34),const SizedBox(height:12),Text(message,textAlign:TextAlign.center,style:const TextStyle(color:_muted)),const SizedBox(height:12),OutlinedButton.icon(onPressed:retry,icon:const Icon(Icons.refresh),label:const Text('TENTAR NOVAMENTE'))])));}
-
 
 
 
