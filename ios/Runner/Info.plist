@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?>
+﻿<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Wegym Flutter</string>
+	<string>WEGYM</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -15,7 +15,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>wegym_flutter</string>
+	<string>WEGYM</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -24,6 +24,27 @@
 	<string>????</string>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>wegym</string>
+			</array>
+		</dict>
+	</array>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+<string>O WeGYM usa Bluetooth para conectar sensores de frequÃªncia cardÃ­aca.</string>
+<key>NSHealthShareUsageDescription</key>
+<string>O WeGYM lÃª passos, batimentos, atividades e distÃ¢ncia para mostrar sua evoluÃ§Ã£o.</string>
+<key>NSHealthUpdateUsageDescription</key>
+<string>O WeGYM registra no Apple Health os treinos que vocÃª concluir.</string>
+<key>NSLocationWhenInUseUsageDescription</key>
+<string>O WeGYM usa a localizaÃ§Ã£o durante uma atividade ao ar livre.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+<string>Allow WeGYM to access your photos to set your profile picture.</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UIApplicationSceneManifest</key>

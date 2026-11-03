@@ -1,4 +1,5 @@
 import { getGenAI } from '@/lib/gemini';
+import { AppError } from '@/lib/errors';
 
 const LIBRARY = {
   peito: [
@@ -110,7 +111,7 @@ const LIBRARY = {
 export const chatService = {
   async generateWorkout(message: string, level: string) {
     const model = getGenAI().getGenerativeModel({
-      model: "gemini-2.5-flash",
+      model: process.env.GEMINI_MODEL || "gemini-3.6-flash",
       generationConfig: { responseMimeType: "application/json" },
       systemInstruction: `Você é um Personal Trainer de elite especializado em musculação, alta performance e mobilidade.
         Sua base de dados é esta LIBRARY: ${JSON.stringify(LIBRARY)}.
@@ -132,7 +133,19 @@ export const chatService = {
         }`
     });
 
-    const result = await model.generateContent(message);
+    const result = await model.generateContent(message, { timeout: 55000 }).catch((error: unknown) => {
+      const failure = error as { status?: number; message?: string };
+      if (failure.status === 429) {
+        throw new AppError(429, 'AI_RATE_LIMIT', 'O limite de uso da IA foi atingido. Aguarde antes de tentar novamente.');
+      }
+      if (failure.status === 503) {
+        throw new AppError(503, 'AI_BUSY', 'O Gemini está com alta demanda. Tente novamente em alguns instantes.');
+      }
+      if (/abort|timeout/i.test(failure.message ?? '')) {
+        throw new AppError(504, 'AI_TIMEOUT', 'O Gemini não respondeu a tempo. Tente novamente em alguns instantes.');
+      }
+      throw new AppError(502, 'AI_UNAVAILABLE', 'Não foi possível conectar ao Gemini. Tente novamente em alguns instantes.');
+    });
     const responseText = result.response.text();
     const aiData = JSON.parse(responseText);
 

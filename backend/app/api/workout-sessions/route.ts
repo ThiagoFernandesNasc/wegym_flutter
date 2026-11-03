@@ -1,5 +1,7 @@
 import { authenticate, handleError, created, withRateLimit } from '@/lib/api-utils';
 import { workoutSessionService } from '@/lib/services/workout-session.service';
+import { gamificationService } from '@/lib/services/gamification.service';
+import { logger } from '@/lib/logger';
 import { z } from 'zod';
 
 export const runtime = 'nodejs';
@@ -35,6 +37,14 @@ export async function POST(request: Request) {
       athleteId: athlete.id,
       ...parsed,
     });
+    try {
+      await gamificationService.checkWorkoutAchievements(
+        session.user.id,
+        athlete.id,
+      );
+    } catch (error) {
+      logger.warn({ error, userId: session.user.id }, '[Gamification] Falha ao atualizar medalhas');
+    }
     return created(result);
   } catch (error) {
     return handleError(error);

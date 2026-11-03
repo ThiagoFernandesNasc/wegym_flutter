@@ -1,0 +1,4 @@
+ALTER TABLE "exercises"
+  ALTER COLUMN "sets" TYPE TEXT,
+  ALTER COLUMN "reps" TYPE TEXT,
+  ALTER COLUMN "load" TYPE TEXT;

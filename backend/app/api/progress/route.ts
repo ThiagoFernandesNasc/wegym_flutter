@@ -1,6 +1,7 @@
-import { authenticate, handleError, json, created, requireRole, withRateLimit } from '@/lib/api-utils';
+import { authenticate, handleError, json, created, withRateLimit } from '@/lib/api-utils';
 import { progressService } from '@/lib/services/progress.service';
 import { z } from 'zod';
+import { requireAthleteAccess } from '@/lib/athlete-access';
 
 export const runtime = 'nodejs';
 
@@ -21,6 +22,7 @@ export async function POST(request: Request) {
 
     const body = await request.json();
     const parsed = createSchema.parse(body);
+    await requireAthleteAccess(parsed.athleteId, session.user.id);
     const entry = await progressService.create(parsed.athleteId, parsed);
     return created(entry);
   } catch (error) {
@@ -36,9 +38,7 @@ export async function GET(request: Request) {
     if (!athleteId) {
       return json({ error: 'athleteId é obrigatório' }, 400);
     }
-    if (session.user.id !== athleteId && (session.user as { role?: string }).role !== 'personal') {
-      return json({ error: 'Sem permissão para acessar estes dados' }, 403);
-    }
+    await requireAthleteAccess(athleteId, session.user.id);
     const entries = await progressService.list(athleteId);
     return json({ data: entries });
   } catch (error) {

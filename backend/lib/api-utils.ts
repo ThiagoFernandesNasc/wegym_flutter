@@ -6,6 +6,7 @@ import { authOptions } from './auth';
 import { verifyMobileToken } from './mobile-auth';
 import { cache } from './cache';
 import { logger } from './logger';
+import { ZodError } from 'zod';
 
 const ONE_MINUTE = 60;
 const FIVE_MINUTES = 300;
@@ -29,6 +30,9 @@ export function created<T>(data: T) {
 }
 
 export function handleError(error: unknown) {
+  if (error instanceof ZodError) {
+    return NextResponse.json({ error: 'Dados inválidos', details: error.issues }, { status: 422 });
+  }
   if (error instanceof AppError) {
     return NextResponse.json(
       { error: error.message, code: error.code, details: error.details },

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { registerSchema, athleteRegisterSchema, paymentSchema, emailSchema, cpfSchema } from '@/lib/validation';
+import { registerSchema, athleteRegisterSchema, paymentSchema, emailSchema, cpfSchema, checkoutPreferenceSchema } from '@/lib/validation';
 
 describe('emailSchema', () => {
   it('should validate correct emails', () => {
@@ -24,10 +24,29 @@ describe('cpfSchema', () => {
 });
 
 describe('registerSchema', () => {
+  it('accepts explicit data consent and rejects an explicit refusal', () => {
+    const registration = {
+      email: 'consent@example.com',
+      password: '12345678',
+      userType: 'atleta' as const,
+      name: 'Atleta Teste',
+      termsAccepted: true as const,
+      privacyAccepted: true as const,
+    };
+
+    expect(
+      registerSchema.safeParse({ ...registration, dataConsentAccepted: true })
+        .success,
+    ).toBe(true);
+    expect(
+      registerSchema.safeParse({ ...registration, dataConsentAccepted: false })
+        .success,
+    ).toBe(false);
+  });
   it('should validate a complete athlete registration', () => {
     const result = registerSchema.safeParse({
       email: 'test@example.com',
-      password: '123456',
+      password: '12345678',
       userType: 'atleta',
       name: 'João Teste',
       termsAccepted: true,
@@ -39,7 +58,7 @@ describe('registerSchema', () => {
   it('should reject missing terms acceptance', () => {
     const result = registerSchema.safeParse({
       email: 'test@example.com',
-      password: '123456',
+      password: '12345678',
       userType: 'atleta',
       name: 'João Teste',
     });
@@ -49,7 +68,7 @@ describe('registerSchema', () => {
   it('should reject invalid userType', () => {
     const result = registerSchema.safeParse({
       email: 'test@example.com',
-      password: '123456',
+      password: '12345678',
       userType: 'admin',
       name: 'João Teste',
       termsAccepted: true,
@@ -61,7 +80,7 @@ describe('registerSchema', () => {
   it('should validate a personal trainer registration with CREF', () => {
     const result = registerSchema.safeParse({
       email: 'personal@example.com',
-      password: '123456',
+      password: '12345678',
       userType: 'personal',
       name: 'Prof. Teste',
       cref: '123456-G/SP',
@@ -127,5 +146,25 @@ describe('paymentSchema', () => {
       payer: { email: 'payer@example.com' },
     });
     expect(result.success).toBe(false);
+  });
+});
+
+describe('checkoutPreferenceSchema', () => {
+  it('accepts only the supported WeGYM subscription plans', () => {
+    expect(checkoutPreferenceSchema.parse({ planId: 'mensal' })).toEqual({
+      planId: 'mensal',
+      platform: 'native',
+    });
+    expect(checkoutPreferenceSchema.parse({ planId: 'anual' })).toEqual({
+      planId: 'anual',
+      platform: 'native',
+    });
+    expect(
+      checkoutPreferenceSchema.parse({ planId: 'mensal', platform: 'web' }),
+    ).toEqual({ planId: 'mensal', platform: 'web' });
+    expect(checkoutPreferenceSchema.safeParse({ planId: 'custom', amount: 0.01 }).success).toBe(false);
+    expect(
+      checkoutPreferenceSchema.safeParse({ planId: 'mensal', platform: 'desktop' }).success,
+    ).toBe(false);
   });
 });

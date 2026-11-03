@@ -18,21 +18,83 @@
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="A new Flutter project.">
+  <meta name="description" content="WeGYM: treinos, academia e acompanhamento de performance.">
+  <meta name="theme-color" content="#F66018">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="wegym_flutter">
+  <meta name="apple-mobile-web-app-title" content="WEGYM">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
+
+  <style>
+    html,
+    body {
+      width: 100%;
+      min-width: 320px;
+      min-height: 100%;
+      margin: 0;
+      background: #101114;
+      color: #f2edef;
+      font-family: Inter, system-ui, sans-serif;
+    }
+
+    #wegym-startup-loader {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      display: grid;
+      place-content: center;
+      gap: 14px;
+      padding: 24px;
+      background: #101114;
+      text-align: center;
+    }
+
+    #wegym-startup-loader[hidden] {
+      display: none;
+    }
+
+    .wegym-startup-spinner {
+      width: 32px;
+      height: 32px;
+      margin: 0 auto;
+      border: 3px solid #39383c;
+      border-top-color: #f66018;
+      border-radius: 50%;
+      animation: wegym-spin 0.8s linear infinite;
+    }
+
+    @keyframes wegym-spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
 
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
-  <title>wegym_flutter</title>
+  <title>WEGYM</title>
   <link rel="manifest" href="manifest.json">
 </head>
 <body>
+  <div id="wegym-startup-loader" role="status" aria-live="polite">
+    <div class="wegym-startup-spinner" aria-hidden="true"></div>
+    <strong>Iniciando o WeGYM</strong>
+    <span id="wegym-startup-message">Carregando o aplicativo...</span>
+  </div>
+  <script>
+    window.addEventListener('flutter-first-frame', function () {
+      var loader = document.getElementById('wegym-startup-loader');
+      if (loader) loader.remove();
+    }, { once: true });
+    window.setTimeout(function () {
+      var message = document.getElementById('wegym-startup-message');
+      if (message) {
+        message.textContent = 'O Flutter está demorando para iniciar. Confira o terminal e recarregue a página.';
+      }
+    }, 15000);
+  </script>
   <!--
     You can customize the "flutter_bootstrap.js" script.
     This is useful to provide a custom configuration to the Flutter loader
@@ -41,6 +103,7 @@
     For more details:
     * https://docs.flutter.dev/platform-integration/web/initialization
   -->
+  <script src="pwa_install.js"></script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

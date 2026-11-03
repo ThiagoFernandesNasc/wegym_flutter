@@ -8,15 +8,8 @@ export const runtime = 'nodejs';
 export async function GET() {
   try {
     const session = await authenticate();
-    const cacheKey = `profile:${session.user.id}`;
-
-    const profile = await cache.getOrSet(
-      cacheKey,
-      () => userService.getProfile(session.user.id),
-      60,
-    );
-
-    return json(profile, 200, 60);
+    const profile = await userService.getProfile(session.user.id);
+    return json(profile);
   } catch (error) {
     return handleError(error);
   }

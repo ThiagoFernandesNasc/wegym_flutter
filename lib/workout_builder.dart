@@ -2,6 +2,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'api.dart';
 import 'stitch_design_system.dart';
+import 'modality_session_page.dart';
+import 'health_platform_integration.dart';
 
 const _surface = stitchSurface;
 const _days = [
@@ -24,14 +26,22 @@ const _splitOptions = [
   'Personalizado',
 ];
 
+typedef _PreviewWorkoutPlan = ({
+  Map<int, List<Map<String, String>>> plans,
+  Set<int> days,
+  String split,
+});
+
 class WorkoutBuilderPage extends StatefulWidget {
   const WorkoutBuilderPage({
     super.key,
     required this.onStartSession,
     this.onStartPlannedSession,
+    this.onSessionSaved,
   });
   final VoidCallback onStartSession;
   final ValueChanged<List<Map<String, dynamic>>>? onStartPlannedSession;
+  final VoidCallback? onSessionSaved;
   @override
   State<WorkoutBuilderPage> createState() => _WorkoutBuilderPageState();
 }
@@ -92,6 +102,7 @@ class _WorkoutBuilderPageState extends State<WorkoutBuilderPage> {
   int _day = DateTime.now().weekday - 1;
   final Map<int, List<Map<String, String>>> _plans = {};
   final Map<int, String> _savedPlanIds = {};
+  final Map<String, _PreviewWorkoutPlan> _previewPlansByAthlete = {};
   final Set<int> _trainingDays = {0, 2, 4};
   List<Map<String, dynamic>> _athletes = [];
   String? _athleteId;
@@ -111,6 +122,17 @@ class _WorkoutBuilderPageState extends State<WorkoutBuilderPage> {
   void initState() {
     super.initState();
     _initializePlans();
+  }
+
+  Future<void> _openModalitySession() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => ModalitySessionPage(
+          preview: const bool.fromEnvironment('PREVIEW_DASHBOARD'),
+          onSaved: widget.onSessionSaved,
+        ),
+      ),
+    );
   }
 
   Map<String, String> _exercise(String name) => {
@@ -143,16 +165,22 @@ class _WorkoutBuilderPageState extends State<WorkoutBuilderPage> {
             const SizedBox(height: 12),
             ValueListenableBuilder<String>(
               valueListenable: level,
-              builder: (context, selected, _) => DropdownButtonFormField<String>(
-                initialValue: selected,
-                decoration: const InputDecoration(labelText: 'Nível'),
-                items: const ['Iniciante', 'Intermediário', 'Avançado']
-                    .map((value) => DropdownMenuItem(value: value, child: Text(value)))
-                    .toList(),
-                onChanged: (value) {
-                  if (value != null) level.value = value;
-                },
-              ),
+              builder: (context, selected, _) =>
+                  DropdownButtonFormField<String>(
+                    initialValue: selected,
+                    decoration: const InputDecoration(labelText: 'Nível'),
+                    items: const ['Iniciante', 'Intermediário', 'Avançado']
+                        .map(
+                          (value) => DropdownMenuItem(
+                            value: value,
+                            child: Text(value),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (value) {
+                      if (value != null) level.value = value;
+                    },
+                  ),
             ),
           ],
         ),
@@ -162,7 +190,8 @@ class _WorkoutBuilderPageState extends State<WorkoutBuilderPage> {
             child: const Text('CANCELAR'),
           ),
           FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, [goal.text.trim(), level.value]),
+            onPressed: () =>
+                Navigator.pop(dialogContext, [goal.text.trim(), level.value]),
             child: const Text('GERAR'),
           ),
         ],
@@ -176,19 +205,28 @@ class _WorkoutBuilderPageState extends State<WorkoutBuilderPage> {
       _notice = '';
     });
     try {
-      final result = await Api.generateAIWorkout(message: input[0], level: input[1]);
+      final result = await Api.generateAIWorkout(
+        message: input[0],
+        level: input[1],
+        previewDemo: const bool.fromEnvironment('PREVIEW_DASHBOARD'),
+      );
       final workout = result['workoutData'];
       final rows = workout is Map ? workout['exercises'] : null;
       if (rows is! List || rows.isEmpty) {
         throw Exception('A IA não retornou exercícios para este objetivo.');
       }
-      final generated = rows.whereType<Map>().map((row) => <String, String>{
-        'name': row['name']?.toString() ?? 'Exercício',
-        'muscle': _catalog[row['name']?.toString()] ?? 'Geral',
-        'sets': row['sets']?.toString() ?? '3',
-        'reps': row['reps']?.toString() ?? '10',
-        'load': row['load']?.toString() ?? '0',
-      }).toList();
+      final generated = rows
+          .whereType<Map>()
+          .map(
+            (row) => <String, String>{
+              'name': row['name']?.toString() ?? 'Exercício',
+              'muscle': _catalog[row['name']?.toString()] ?? 'Geral',
+              'sets': row['sets']?.toString() ?? '3',
+              'reps': row['reps']?.toString() ?? '10',
+              'load': row['load']?.toString() ?? '0',
+            },
+          )
+          .toList();
       if (!mounted) return;
       setState(() {
         _plans[_day] = generated;
@@ -196,9 +234,11 @@ class _WorkoutBuilderPageState extends State<WorkoutBuilderPage> {
       });
     } catch (error) {
       if (!mounted) return;
-      setState(() => _notice = const bool.fromEnvironment('PREVIEW_DASHBOARD')
-          ? 'A IA requer o backend Next.js ativo e uma sessão autenticada. Entre com uma conta real para gerar sugestões.'
-          : 'Não foi possível gerar o treino: $error');
+      setState(
+        () => _notice = const bool.fromEnvironment('PREVIEW_DASHBOARD')
+            ? 'Não foi possível consultar o Gemini. Confira a chave GEMINI_API_KEY no backend/.env e tente novamente.'
+            : 'Não foi possível gerar o treino: $error',
+      );
     } finally {
       if (mounted) setState(() => _generatingWithAI = false);
     }
@@ -206,7 +246,23 @@ class _WorkoutBuilderPageState extends State<WorkoutBuilderPage> {
 
   Future<void> _initializePlans() async {
     if (const bool.fromEnvironment('PREVIEW_DASHBOARD')) {
+      final role = await Api.previewRole();
+      _isPersonal = role == 'personal';
+      if (_isPersonal) {
+        _athletes = [
+          {'id': 'preview-athlete-mariana', 'name': 'Mariana Costa'},
+          {'id': 'preview-athlete-pedro', 'name': 'Pedro Almeida'},
+        ];
+        _athleteId = _athletes.first['id'];
+        _athleteName = _athletes.first['name']!;
+      } else {
+        _athleteId = 'preview-athlete';
+        _athleteName = 'João Silva';
+      }
       _applySplitToDays();
+      if (!_trainingDays.contains(_day)) {
+        _day = (_trainingDays.toList()..sort()).first;
+      }
       if (mounted) setState(() => _loadingPlan = false);
       return;
     }
@@ -235,6 +291,34 @@ class _WorkoutBuilderPageState extends State<WorkoutBuilderPage> {
   Future<void> _selectAthlete(Map<String, dynamic> athlete) async {
     final id = athlete['id']?.toString();
     if (id == null || id == _athleteId) return;
+    if (const bool.fromEnvironment('PREVIEW_DASHBOARD')) {
+      final currentId = _athleteId;
+      if (currentId != null) {
+        _previewPlansByAthlete[currentId] = (
+          plans: _copyPlans(_plans),
+          days: Set<int>.of(_trainingDays),
+          split: _split,
+        );
+      }
+      final saved = _previewPlansByAthlete[id];
+      setState(() {
+        _athleteId = id;
+        _athleteName = athlete['name']?.toString() ?? 'Atleta';
+        _split = saved?.split ?? 'PPL';
+        _trainingDays
+          ..clear()
+          ..addAll(saved?.days ?? {0, 2, 4});
+        _plans.clear();
+        if (saved != null) _plans.addAll(_copyPlans(saved.plans));
+        _savedPlanIds.clear();
+        if (saved == null) _applySplitToDays();
+        _day = _trainingDays.contains(DateTime.now().weekday - 1)
+            ? DateTime.now().weekday - 1
+            : (_trainingDays.toList()..sort()).first;
+        _notice = 'Plano de demonstração aberto para $_athleteName.';
+      });
+      return;
+    }
     setState(() {
       _athleteId = id;
       _athleteName = athlete['name']?.toString() ?? '';
@@ -253,6 +337,13 @@ class _WorkoutBuilderPageState extends State<WorkoutBuilderPage> {
       if (mounted) setState(() => _loadingPlan = false);
     }
   }
+
+  Map<int, List<Map<String, String>>> _copyPlans(
+    Map<int, List<Map<String, String>>> source,
+  ) => {
+    for (final entry in source.entries)
+      entry.key: entry.value.map((exercise) => Map.of(exercise)).toList(),
+  };
 
   Future<void> _loadPlans(String athleteId) async {
     final rows = await Api.trainingPlan(athleteId);
@@ -419,6 +510,13 @@ class _WorkoutBuilderPageState extends State<WorkoutBuilderPage> {
       return;
     }
     if (preview) {
+      if (_athleteId != null) {
+        _previewPlansByAthlete[_athleteId!] = (
+          plans: _copyPlans(_plans),
+          days: Set<int>.of(_trainingDays),
+          split: _split,
+        );
+      }
       setState(
         () => _notice =
             'Prévia: divisão semanal salva localmente para $_athleteName.',
@@ -435,7 +533,9 @@ class _WorkoutBuilderPageState extends State<WorkoutBuilderPage> {
           .where((day) => !_trainingDays.contains(day))
           .toList();
       for (final day in removedDays) {
-        await Api.deleteTrainingPlan(_savedPlanIds.remove(day)!);
+        final planId = _savedPlanIds[day]!;
+        await Api.deleteTrainingPlan(planId);
+        _savedPlanIds.remove(day);
         _plans.remove(day);
       }
       for (final index in selected) {
@@ -456,16 +556,11 @@ class _WorkoutBuilderPageState extends State<WorkoutBuilderPage> {
         if (id != null) _savedPlanIds[index] = id;
       }
       if (mounted) {
-        setState(
-          () => _notice = 'Divisão semanal salva para $_athleteName.',
-        );
+        setState(() => _notice = 'Divisão semanal salva para $_athleteName.');
       }
     } catch (error) {
       if (mounted) {
-        setState(
-          () => _notice =
-              'Não foi possível salvar a divisão: $error',
-        );
+        setState(() => _notice = 'Não foi possível salvar a divisão: $error');
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -551,6 +646,11 @@ class _WorkoutBuilderPageState extends State<WorkoutBuilderPage> {
           spacing: 8,
           runSpacing: 8,
           children: [
+            OutlinedButton.icon(
+              onPressed: _isPersonal ? null : _openModalitySession,
+              icon: const Icon(Icons.pool_outlined, size: 16),
+              label: const Text('OUTRAS MODALIDADES'),
+            ),
             OutlinedButton.icon(
               onPressed: _import,
               icon: const Icon(Icons.file_upload_outlined, size: 16),
@@ -871,6 +971,11 @@ class _WorkoutBuilderPageState extends State<WorkoutBuilderPage> {
   );
 
   Widget _editor({required bool wide}) {
+    final orderedTrainingDays = _trainingDays.toList()..sort();
+    final trainingPosition = orderedTrainingDays.indexOf(_day);
+    final workoutLetter = String.fromCharCode(
+      65 + (trainingPosition < 0 ? 0 : trainingPosition),
+    );
     final exerciseList = _exercises.isEmpty
         ? const Padding(
             padding: EdgeInsets.all(28),
@@ -903,7 +1008,7 @@ class _WorkoutBuilderPageState extends State<WorkoutBuilderPage> {
                 children: [
                   Expanded(
                     child: Text(
-                      'TREINO ${String.fromCharCode(65 + _day)}  •  ${_days[_day].toUpperCase()}',
+                      'TREINO $workoutLetter  •  ${_days[_day].toUpperCase()}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
@@ -961,7 +1066,10 @@ class _WorkoutBuilderPageState extends State<WorkoutBuilderPage> {
                     style: OutlinedButton.styleFrom(
                       foregroundColor: stitchGreen,
                       side: const BorderSide(color: stitchGreen),
-                      textStyle: const TextStyle(fontSize: 9, fontWeight: FontWeight.w900),
+                      textStyle: const TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w900,
+                      ),
                     ),
                   ),
                   startControl,
@@ -1480,12 +1588,7 @@ class _WorkoutBuilderPageState extends State<WorkoutBuilderPage> {
 
   void _export() {
     final text =
-        'WEGYM — ${_days[_day]}\n${_exercises
-            .map(
-              (e) =>
-                  '${e['name'] ?? ''}: ${e['sets'] ?? ''} x ${e['reps'] ?? ''} @ ${e['load'] ?? '0'} kg',
-            )
-            .join('\n')}';
+        'WEGYM — ${_days[_day]}\n${_exercises.map((e) => '${e['name'] ?? ''}: ${e['sets'] ?? ''} x ${e['reps'] ?? ''} @ ${e['load'] ?? '0'} kg').join('\n')}';
     showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
@@ -1511,6 +1614,8 @@ class WorkoutSessionController {
     });
   }
   final List<Map<String, dynamic>>? plannedExercises;
+  final Map<String, List<Map<String, dynamic>>> performedSets = {};
+  final DateTime startedAt = DateTime.now();
   final ValueNotifier<int> elapsed = ValueNotifier<int>(0);
   Timer? _timer;
   bool running = true;
@@ -1530,6 +1635,105 @@ class WorkoutSessionController {
   }
 }
 
+class _SetLogDialog extends StatefulWidget {
+  const _SetLogDialog({
+    required this.setNumber,
+    required this.initialWeightKg,
+    required this.initialReps,
+  });
+
+  final int setNumber;
+  final double initialWeightKg;
+  final int initialReps;
+
+  @override
+  State<_SetLogDialog> createState() => _SetLogDialogState();
+}
+
+class _SetLogDialogState extends State<_SetLogDialog> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _weight;
+  late final TextEditingController _reps;
+
+  @override
+  void initState() {
+    super.initState();
+    _weight = TextEditingController(
+      text: widget.initialWeightKg.toStringAsFixed(
+        widget.initialWeightKg.truncateToDouble() == widget.initialWeightKg
+            ? 0
+            : 1,
+      ),
+    );
+    _reps = TextEditingController(text: widget.initialReps.toString());
+  }
+
+  @override
+  void dispose() {
+    _weight.dispose();
+    _reps.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    backgroundColor: stitchSurface,
+    title: Text('Registrar série ${widget.setNumber}'),
+    content: Form(
+      key: _formKey,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextFormField(
+            controller: _weight,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: const InputDecoration(
+              labelText: 'Carga executada (kg)',
+            ),
+            validator: (value) {
+              final weight = double.tryParse(
+                (value ?? '').replaceAll(',', '.'),
+              );
+              return weight == null || weight < 0
+                  ? 'Informe uma carga válida.'
+                  : null;
+            },
+          ),
+          TextFormField(
+            controller: _reps,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              labelText: 'Repetições executadas',
+            ),
+            validator: (value) {
+              final reps = int.tryParse(value ?? '');
+              return reps == null || reps < 1
+                  ? 'Informe ao menos uma repetição.'
+                  : null;
+            },
+          ),
+        ],
+      ),
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('CANCELAR'),
+      ),
+      FilledButton(
+        onPressed: () {
+          if (!_formKey.currentState!.validate()) return;
+          Navigator.pop(context, {
+            'weightKg': double.parse(_weight.text.replaceAll(',', '.')),
+            'reps': int.parse(_reps.text),
+          });
+        },
+        child: const Text('CONFIRMAR SÉRIE'),
+      ),
+    ],
+  );
+}
+
 /// Active workout screen, separate from the weekly plan editor.
 class WorkoutSessionPage extends StatefulWidget {
   const WorkoutSessionPage({
@@ -1537,11 +1741,13 @@ class WorkoutSessionPage extends StatefulWidget {
     required this.preview,
     required this.controller,
     required this.onExit,
+    this.onSaved,
   });
 
   final bool preview;
   final WorkoutSessionController controller;
   final VoidCallback onExit;
+  final VoidCallback? onSaved;
 
   @override
   State<WorkoutSessionPage> createState() => _WorkoutSessionPageState();
@@ -1603,6 +1809,157 @@ class _WorkoutSessionPageState extends State<WorkoutSessionPage> {
     }
   }
 
+  String _exerciseKey(int index, Map<String, dynamic> exercise) =>
+      '$index:${exercise['id'] ?? exercise['name'] ?? 'exercise'}';
+
+  int _plannedSetCount(Map<String, dynamic> exercise) {
+    final text = (exercise['sets'] ?? '').toString();
+    final match = RegExp(r'\d+').firstMatch(text);
+    return (int.tryParse(match?.group(0) ?? '') ?? 0).clamp(0, 20);
+  }
+
+  int _plannedReps(Map<String, dynamic> exercise) {
+    final matches = RegExp(r'\d+')
+        .allMatches((exercise['reps'] ?? '').toString())
+        .map((match) => int.tryParse(match.group(0) ?? ''))
+        .whereType<int>()
+        .toList();
+    if (matches.isEmpty) return 10;
+    if (matches.length == 1) return matches.single;
+    return ((matches[matches.length - 2] + matches.last) / 2).round();
+  }
+
+  double _plannedLoad(Map<String, dynamic> exercise) {
+    final matches = RegExp(
+      r'\d+(?:[.,]\d+)?',
+    ).allMatches((exercise['load'] ?? '').toString()).toList();
+    if (matches.isEmpty) return 0;
+    return double.tryParse(matches.last.group(0)!.replaceAll(',', '.')) ?? 0;
+  }
+
+  Future<void> _togglePerformedSet(
+    int exerciseIndex,
+    Map<String, dynamic> exercise,
+    int setNumber,
+  ) async {
+    final key = _exerciseKey(exerciseIndex, exercise);
+    final records = _session.performedSets[key];
+    if (records?.any((row) => row['setNumber'] == setNumber) ?? false) {
+      setState(
+        () => records!.removeWhere((row) => row['setNumber'] == setNumber),
+      );
+      return;
+    }
+    final record = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (_) => _SetLogDialog(
+        setNumber: setNumber,
+        initialWeightKg: _plannedLoad(exercise),
+        initialReps: _plannedReps(exercise),
+      ),
+    );
+    if (!mounted || record == null) return;
+    setState(() {
+      _session.performedSets.putIfAbsent(key, () => []).add({
+        'setNumber': setNumber,
+        'weightKg': record['weightKg'],
+        'reps': record['reps'],
+        'completed': true,
+      });
+    });
+  }
+
+  Widget _exerciseCard(int index, Map<String, dynamic> exercise) {
+    final key = _exerciseKey(index, exercise);
+    final records =
+        _session.performedSets[key] ?? const <Map<String, dynamic>>[];
+    final setCount = _plannedSetCount(exercise);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: stitchSurfaceLow,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.fitness_center, color: stitchOrange, size: 18),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      (exercise['name'] ?? 'Exercício').toString(),
+                      style: const TextStyle(
+                        color: stitchText,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    Text(
+                      '${exercise['sets'] ?? ''} séries • ${exercise['reps'] ?? ''} repetições • ${exercise['load'] ?? ''} kg',
+                      style: const TextStyle(color: stitchMuted, fontSize: 11),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (setCount > 0) ...[
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 7,
+              runSpacing: 7,
+              children: List.generate(setCount, (setIndex) {
+                final setNumber = setIndex + 1;
+                Map<String, dynamic>? record;
+                for (final item in records) {
+                  if (item['setNumber'] == setNumber) {
+                    record = item;
+                    break;
+                  }
+                }
+                final completed = record != null;
+                final weight = completed
+                    ? (record['weightKg'] as num).toDouble()
+                    : 0;
+                final reps = completed ? (record['reps'] as num).toInt() : 0;
+                return OutlinedButton.icon(
+                  key: ValueKey('workout-set-$index-$setNumber'),
+                  onPressed: _session.saving || _session.saved
+                      ? null
+                      : () => _togglePerformedSet(index, exercise, setNumber),
+                  icon: Icon(
+                    completed ? Icons.check_circle : Icons.add_circle_outline,
+                    size: 14,
+                  ),
+                  label: Text(
+                    completed
+                        ? '${weight.toStringAsFixed(weight.truncateToDouble() == weight ? 0 : 1)} kg × $reps'
+                        : 'REGISTRAR SÉRIE $setNumber',
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: completed ? stitchGreen : stitchPeach,
+                    side: BorderSide(
+                      color: completed ? stitchGreen : Colors.white12,
+                    ),
+                    textStyle: const TextStyle(
+                      fontSize: 9,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                );
+              }),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   void _toggleTimer() {
     setState(_session.toggle);
   }
@@ -1620,18 +1977,47 @@ class _WorkoutSessionPageState extends State<WorkoutSessionPage> {
       _session.running = false;
       _session.notice = '';
     });
+    var savedOffline = false;
     try {
-      final exercises = await _plannedExercises;
+      final planned = await _plannedExercises;
+      final exercises = [
+        for (var index = 0; index < planned.length; index++)
+          {
+            ...planned[index],
+            'performedSets':
+                _session.performedSets[_exerciseKey(index, planned[index])]
+                    ?.map((set) => Map<String, dynamic>.from(set))
+                    .toList() ??
+                [],
+          },
+      ];
       if (!widget.preview) {
-        await Api.saveSession(_session.elapsed.value, exercises: exercises);
+        final outcome = await Api.saveSession(
+          _session.elapsed.value,
+          exercises: exercises,
+        );
+        savedOffline = outcome == SessionSaveOutcome.queuedOffline;
+        if (!Api.hasInjectedRequestHandler) {
+          await HealthPlatformIntegration().saveWorkout(
+            start: _session.startedAt,
+            end: _session.startedAt.add(
+              Duration(seconds: _session.elapsed.value),
+            ),
+            kind: NativeWorkoutKind.strength,
+            title: 'Treino de musculação WeGYM',
+          );
+        }
       }
       if (!mounted) return;
       setState(() {
         _session.saved = true;
         _session.notice = widget.preview
             ? 'Prévia: a sessão não foi enviada ao servidor.'
+            : savedOffline
+            ? 'Sem conexão. Treino salvo no dispositivo e aguardando sincronização.'
             : 'Treino registrado com sucesso.';
       });
+      if (!widget.preview) widget.onSaved?.call();
     } catch (error) {
       if (!mounted) return;
       setState(() {
@@ -1733,6 +2119,7 @@ class _WorkoutSessionPageState extends State<WorkoutSessionPage> {
                           builder: (context, seconds, _) => Text(
                             formatSessionTime(seconds),
                             style: TextStyle(
+                              fontFamily: 'JetBrains Mono',
                               color: stitchText,
                               fontSize: wide ? 68 : 52,
                               fontWeight: FontWeight.w900,
@@ -1817,59 +2204,14 @@ class _WorkoutSessionPageState extends State<WorkoutSessionPage> {
                                 ),
                               )
                             : Column(
-                                children: exercises.map((exercise) {
-                                  final name = (exercise['name'] ?? 'Exercício')
-                                      .toString();
-                                  final details = [
-                                    if (exercise['sets'] != null)
-                                      '${exercise['sets']} séries',
-                                    if (exercise['reps'] != null)
-                                      '${exercise['reps']} repetições',
-                                    if (exercise['load'] != null)
-                                      '${exercise['load']} kg',
-                                  ].join(' • ');
-                                  return Container(
-                                    margin: const EdgeInsets.only(bottom: 8),
-                                    padding: const EdgeInsets.all(14),
-                                    decoration: BoxDecoration(
-                                      color: stitchSurfaceLow,
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        const Icon(
-                                          Icons.fitness_center,
-                                          color: stitchOrange,
-                                          size: 18,
-                                        ),
-                                        const SizedBox(width: 12),
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                name,
-                                                style: const TextStyle(
-                                                  color: stitchText,
-                                                  fontWeight: FontWeight.w800,
-                                                ),
-                                              ),
-                                              if (details.isNotEmpty)
-                                                Text(
-                                                  details,
-                                                  style: const TextStyle(
-                                                    color: stitchMuted,
-                                                    fontSize: 11,
-                                                  ),
-                                                ),
-                                            ],
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  );
-                                }).toList(),
+                                children: exercises
+                                    .asMap()
+                                    .entries
+                                    .map(
+                                      (entry) =>
+                                          _exerciseCard(entry.key, entry.value),
+                                    )
+                                    .toList(),
                               ),
                       );
                     },

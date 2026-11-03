@@ -92,6 +92,7 @@ export const userService = {
           email: true,
           role: true,
           createdAt: true,
+          avatarUrl: true,
           athlete: {
             select: {
               id: true,
@@ -103,6 +104,7 @@ export const userService = {
               weightKg: true,
               sex: true,
               experienceLevel: true,
+              personal: { select: { userId: true } },
             },
           },
           personal: {
@@ -123,6 +125,7 @@ export const userService = {
         athlete: user.athlete
           ? {
               id: user.athlete.id,
+              personalUserId: user.athlete.personal?.userId ?? null,
               name: user.athlete.name,
               city: user.athlete.city,
               state: user.athlete.state,
@@ -137,11 +140,12 @@ export const userService = {
           ? { id: user.personal.id, name: user.personal.name, cref: user.personal.cref }
           : null,
         avatarPlaceholder,
+        avatarUrl: user.avatarUrl,
       };
     }, 60);
   },
 
-  async updateProfile(userId: string, data: { name?: string; weightKg?: number; heightCm?: number }) {
+  async updateProfile(userId: string, data: { name?: string; weightKg?: number; heightCm?: number; avatarUrl?: string | null }) {
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: {
@@ -152,6 +156,13 @@ export const userService = {
       },
     });
     if (!user) throw new NotFoundError('Usuário');
+
+    if (data.avatarUrl !== undefined) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { avatarUrl: data.avatarUrl },
+      });
+    }
 
     if (user.role === 'atleta' && user.athlete) {
       const updateData: Record<string, unknown> = {};

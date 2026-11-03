@@ -6,16 +6,17 @@ export const engagementService = {
   },
 
   async getConversation(userId: string, otherId: string, limit = 50) {
-    return prisma.message.findMany({
+    const messages = await prisma.message.findMany({
       where: {
         OR: [
           { senderId: userId, receiverId: otherId },
           { senderId: otherId, receiverId: userId },
         ],
       },
-      orderBy: { createdAt: 'asc' },
+      orderBy: { createdAt: 'desc' },
       take: limit,
     });
+    return messages.reverse();
   },
 
   async getConversations(userId: string) {

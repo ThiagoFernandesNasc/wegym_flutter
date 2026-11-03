@@ -1,4 +1,8 @@
-import type { NextConfig } from 'next';
+﻿import type { NextConfig } from 'next';
+
+const isDev = process.env.NODE_ENV === 'development';
+const corsAllowedOrigin = process.env.CORS_ALLOWED_ORIGIN ??
+  (isDev ? '*' : '');
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
@@ -36,14 +40,16 @@ const nextConfig: NextConfig = {
     turbopackFileSystemCacheForDev: true,
   },
 
-async headers() {
+  async headers() {
     return [
       {
         source: '/api/:path*',
         headers: [
-          { key: 'Access-Control-Allow-Origin', value: '*' },
+          ...(corsAllowedOrigin
+            ? [{ key: 'Access-Control-Allow-Origin', value: corsAllowedOrigin }]
+            : []),
           { key: 'Access-Control-Allow-Methods', value: 'GET, POST, PUT, PATCH, DELETE, OPTIONS' },
-          { key: 'Access-Control-Allow-Headers', value: 'Content-Type, Authorization' },
+          { key: 'Access-Control-Allow-Headers', value: 'Content-Type, Authorization, x-wegym-preview-ai' },
           { key: 'Access-Control-Max-Age', value: '600' },
         ],
       },
@@ -97,5 +103,6 @@ async headers() {
 };
 
 export default process.env.ANALYZE === 'true'
+  // eslint-disable-next-line @typescript-eslint/no-require-imports -- The analyzer is optional and loaded only when requested.
   ? require('@next/bundle-analyzer')({ enabled: true })(nextConfig)
   : nextConfig;

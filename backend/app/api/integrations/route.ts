@@ -2,6 +2,7 @@ import { authenticate, handleError, json, withRateLimit } from '@/lib/api-utils'
 import { integrationService } from '@/lib/services/integration.service';
 import { stravaService } from '@/lib/services/strava.service';
 import { googleFitService } from '@/lib/services/google-fit.service';
+import { createIntegrationOAuthState, type IntegrationPlatform, type IntegrationProvider } from '@/lib/integration-oauth-state';
 
 export const runtime = 'nodejs';
 
@@ -40,13 +41,22 @@ export async function POST(request: Request) {
     const rateLimitResponse = await withRateLimit(request, `integrations-connect:${session.user.id}`);
     if (rateLimitResponse) return rateLimitResponse;
 
-    const { provider } = (await request.json()) as { provider: string };
-
-    const statePayload = JSON.stringify({ userId: session.user.id, provider });
-    const stateBase64 = Buffer.from(statePayload).toString('base64');
-    const { createHmac } = await import('crypto');
-    const hmac = createHmac('sha256', process.env.NEXTAUTH_SECRET ?? '').update(stateBase64).digest('hex');
-    const state = `${stateBase64}.${hmac}`;
+    const { provider, platform } = (await request.json()) as {
+      provider: string;
+      platform?: string;
+    };
+    if (provider !== 'strava' && provider !== 'google_fit') {
+      return json({ error: 'Provedor inv?lido' }, 400);
+    }
+    const allowedPlatforms: IntegrationPlatform[] = ['next', 'flutter_web', 'flutter_native'];
+    const targetPlatform = platform && allowedPlatforms.includes(platform as IntegrationPlatform)
+      ? platform as IntegrationPlatform
+      : 'next';
+    const state = createIntegrationOAuthState({
+      userId: session.user.id,
+      provider: provider as IntegrationProvider,
+      platform: targetPlatform,
+    });
 
     let url: string;
     if (provider === 'strava') {

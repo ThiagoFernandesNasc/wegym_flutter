@@ -1,6 +1,28 @@
 import { prisma } from '@/lib/prisma';
 import type { Prisma } from '@prisma/client';
 
+function sumPerformedLiftVolumeKg(sessions: Array<{ exercises: Prisma.JsonValue | null }>) {
+  let total = 0;
+  for (const session of sessions) {
+    if (!Array.isArray(session.exercises)) continue;
+    for (const item of session.exercises) {
+      if (typeof item !== 'object' || item === null || Array.isArray(item)) continue;
+      const performedSets = (item as Prisma.JsonObject).performedSets;
+      if (!Array.isArray(performedSets)) continue;
+      for (const set of performedSets) {
+        if (typeof set !== 'object' || set === null || Array.isArray(set)) continue;
+        const row = set as Prisma.JsonObject;
+        const weightKg = row.weightKg;
+        const reps = row.reps;
+        if (row.completed !== true || typeof weightKg !== 'number' || typeof reps !== 'number') continue;
+        if (!Number.isFinite(weightKg) || !Number.isFinite(reps) || weightKg < 0 || reps < 1) continue;
+        total += weightKg * reps;
+      }
+    }
+  }
+  return Math.round(total * 100) / 100;
+}
+
 export const workoutSessionService = {
   async create(data: {
     athleteId: string;
@@ -54,13 +76,14 @@ export const workoutSessionService = {
 
     const sessions = await prisma.workoutSession.findMany({
       where: { athleteId, completedAt: { gte: startDate } },
-      select: { completedAt: true, durationSec: true },
+      select: { completedAt: true, durationSec: true, exercises: true },
       orderBy: { completedAt: 'desc' },
     });
 
     return {
       totalSessions: aggregate._count,
       totalVolume: aggregate._sum.durationSec ?? 0,
+      totalLiftedVolumeKg: sumPerformedLiftVolumeKg(sessions),
       totalCalories: aggregate._sum.calories ?? 0,
       totalDistance: aggregate._sum.distanceKm ?? 0,
       avgHeartRate: aggregate._avg.avgHeartRate ? Math.round(aggregate._avg.avgHeartRate) : 0,

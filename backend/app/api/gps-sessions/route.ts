@@ -1,5 +1,7 @@
 import { authenticate, handleError, created, withRateLimit } from '@/lib/api-utils';
 import { gpsSessionService } from '@/lib/services/gps-session.service';
+import { gamificationService } from '@/lib/services/gamification.service';
+import { logger } from '@/lib/logger';
 import { z } from 'zod';
 
 export const runtime = 'nodejs';
@@ -37,6 +39,17 @@ export async function POST(request: Request) {
       athleteId: athlete.id,
       ...parsed,
     });
+    try {
+      await gamificationService.checkWorkoutAchievements(
+        session.user.id,
+        athlete.id,
+      );
+    } catch (error) {
+      logger.warn(
+        { error, userId: session.user.id },
+        '[Gamification] Falha ao atualizar medalhas após atividade GPS',
+      );
+    }
     return created(result);
   } catch (error) {
     return handleError(error);

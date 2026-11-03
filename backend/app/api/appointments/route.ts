@@ -2,6 +2,7 @@ import { authenticate, handleError, json, created, withRateLimit } from '@/lib/a
 import { appointmentService } from '@/lib/services/appointment.service';
 import { appointmentBookSchema, appointmentActionSchema } from '@/lib/validation';
 import { ValidationError } from '@/lib/errors';
+import { prisma } from '@/lib/prisma';
 
 export const runtime = 'nodejs';
 
@@ -9,7 +10,7 @@ export async function GET() {
   try {
     const session = await authenticate();
     const role = (session.user as { role?: string }).role ?? 'atleta';
-    const appointments = await appointmentService.getAppointments(session.user.id, role as 'athlete' | 'personal');
+    const appointments = await appointmentService.getAppointments(session.user.id, role === 'personal' ? 'personal' : 'athlete');
     return json(appointments);
   } catch (error) { return handleError(error); }
 }
@@ -40,6 +41,8 @@ export async function PATCH(request: Request) {
       await appointmentService.cancel(parsed.data.id, session.user.id);
       return json({ success: true });
     }
+    const owned = await prisma.appointment.findFirst({ where: { id: parsed.data.id, personalId: session.user.id } });
+    if (!owned) return json({ error: 'Acesso negado' }, 403);
     const appt = await appointmentService.confirm(parsed.data.id);
     return json(appt);
   } catch (error) { return handleError(error); }

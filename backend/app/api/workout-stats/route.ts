@@ -1,4 +1,3 @@
-import { unstable_cache } from "next/cache";
 import { authenticate, handleError, json } from "@/lib/api-utils";
 import { workoutSessionService } from "@/lib/services/workout-session.service";
 import { prisma } from "@/lib/prisma";
@@ -6,14 +5,6 @@ import { prisma } from "@/lib/prisma";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
-
-const getCachedStats = unstable_cache(
-  async (athleteId: string, period: "week" | "month" | "year") => {
-    return workoutSessionService.getStats(athleteId, period);
-  },
-  ["workout-stats"],
-  { revalidate: 30, tags: ["workout-stats"] }
-);
 
 export async function GET(request: Request) {
   try {
@@ -29,8 +20,8 @@ export async function GET(request: Request) {
       return Response.json({ error: "Atleta não encontrado" }, { status: 404 });
     }
 
-    const stats = await getCachedStats(athlete.id, period);
-    return json({ data: stats }, 200, 30);
+    const stats = await workoutSessionService.getStats(athlete.id, period);
+    return json({ data: stats });
   } catch (error) {
     return handleError(error);
   }

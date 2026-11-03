@@ -25,7 +25,7 @@ model User {
   anonymizedAt        DateTime?
 
   displayName String? @db.VarChar(255)
-  avatarUrl   String? @db.VarChar(500)
+  avatarUrl   String? @db.Text
   bio         String? @db.Text
 
   createdAt DateTime @default(now())
@@ -138,9 +138,9 @@ model TrainingPlan {
 model Exercise {
   id   String @id @default(uuid()) @db.Uuid
   name String @db.VarChar(255)
-  sets String @db.VarChar(10)
-  reps String @db.VarChar(10)
-  load String @db.VarChar(20)
+  sets String @db.Text
+  reps String @db.Text
+  load String @db.Text
 
   planId String       @db.Uuid
   plan   TrainingPlan @relation(fields: [planId], references: [id], onDelete: Cascade)

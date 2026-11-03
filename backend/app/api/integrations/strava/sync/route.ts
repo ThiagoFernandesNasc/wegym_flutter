@@ -31,7 +31,7 @@ export async function POST() {
       accessToken = refreshed.accessToken;
     }
 
-    if (!accessToken) return json({ error: 'Strava token unavailable; reconnect the integration' }, 400);
+    if (!accessToken) return json({ error: 'Reconecte o Strava antes de sincronizar.' }, 400);
 
     const activities = await stravaService.fetchActivities(
       accessToken,

@@ -13,6 +13,15 @@ export default withAuth({
         return true;
       }
 
+      if (
+        path === '/api/chat' &&
+        process.env.NODE_ENV !== 'production' &&
+        process.env.WEGYM_PREVIEW_AI_ENABLED === 'true' &&
+        req.headers.get('x-wegym-preview-ai') === 'true'
+      ) {
+        return true;
+      }
+
       if (path === '/' || path === '/login' || path === '/offline' || path === '/privacy' || path === '/reset-password') {
         return true;
       }

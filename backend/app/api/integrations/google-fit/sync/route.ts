@@ -31,7 +31,7 @@ export async function POST() {
       accessToken = refreshed.accessToken;
     }
 
-    if (!accessToken) return json({ error: 'Google Fit token unavailable; reconnect the integration' }, 400);
+    if (!accessToken) return json({ error: 'Reconecte o Google Fit antes de sincronizar.' }, 400);
 
     const endTime = new Date();
     const startTime = integration.lastSyncAt

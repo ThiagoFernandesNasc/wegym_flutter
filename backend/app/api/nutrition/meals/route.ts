@@ -2,6 +2,7 @@ import { authenticate, handleError, json, created, withRateLimit } from '@/lib/a
 import { nutritionService } from '@/lib/services/nutrition.service';
 import { mealSchema, addFoodToMealSchema } from '@/lib/validation';
 import { ValidationError } from '@/lib/errors';
+import { prisma } from '@/lib/prisma';
 
 export const runtime = 'nodejs';
 
@@ -25,6 +26,8 @@ export async function POST(request: Request) {
     if (body.foodId && body.mealId) {
       const parsed = addFoodToMealSchema.safeParse(body);
       if (!parsed.success) throw new ValidationError('Dados inválidos', parsed.error.issues);
+      const ownedMeal = await prisma.mealLog.findFirst({ where: { id: parsed.data.mealId, userId: session.user.id }, select: { id: true } });
+      if (!ownedMeal) return json({ error: 'Refeição não encontrada' }, 404);
       const mf = await nutritionService.addFoodToMeal(parsed.data.mealId, parsed.data.foodId, parsed.data.amount ?? 1);
       return json(mf);
     }

@@ -37,8 +37,6 @@ export const integrationService = {
         lastSyncAt: true,
         createdAt: true,
         providerData: true,
-        accessToken: true,
-        refreshToken: true,
       },
     });
   },

@@ -381,11 +381,11 @@
     "healthPlatforms": "Apple Health · Google Fit",
     "connected": "Conectado",
     "updated": "Perfil atualizado",
-    "imcHint": "Toque em peso ou altura para atualizar. O IMC Ã© recalculado automaticamente e serve apenas como referÃªncia.",
-    "deleteWarning": "Esta aÃ§Ã£o anonimizarÃ¡ permanentemente todos os seus dados pessoais. Seus treinos registrados serÃ£o mantidos mas desvinculados da sua identidade. Esta operaÃ§Ã£o nÃ£o pode ser desfeita.",
+    "imcHint": "Toque em peso ou altura para atualizar. O IMC é recalculado automaticamente e serve apenas como referência.",
+    "deleteWarning": "Esta ação anonimizará permanentemente todos os seus dados pessoais. Seus treinos registrados serão mantidos mas desvinculados da sua identidade. Esta operação não pode ser desfeita.",
     "planLabel": "Plano",
-    "waitingForDevices": "Aguardando dispositivosâ€¦",
-    "compatibleDescription": "RelÃ³gios, monitores cardÃ­acos e sensores"
+    "waitingForDevices": "Aguardando dispositivos…",
+    "compatibleDescription": "Relógios, monitores cardíacos e sensores"
   },
   "pro": {
     "title": "Wegym Pro",

@@ -43,6 +43,7 @@ export const registerSchema = z.object({
   cref: z.string().optional(),
   termsAccepted: z.literal(true, { message: 'Você precisa aceitar os Termos de Uso' }),
   privacyAccepted: z.literal(true, { message: 'Você precisa aceitar a Política de Privacidade' }),
+  dataConsentAccepted: z.literal(true, { message: 'Voc\u00ea precisa autorizar o tratamento de dados' }).optional(),
 });
 
 export const athleteRegisterSchema = z.object({
@@ -56,18 +57,30 @@ export const athleteRegisterSchema = z.object({
   experienceLevel: z.enum(['iniciante', 'intermediario', 'avancado']),
   cep: z.string().min(8).max(9),
   city: z.string().max(100),
-  state: ufSchema,
+  state: z.union([ufSchema, z.literal('')]).default(''),
   phone: z.string().optional(),
   emergencyContact: z.string().optional(),
   objective: z.string().optional(),
   observations: z.string().optional(),
   availableDays: z.string().optional(),
+  injury: z.string().max(1000).optional(),
+  healthIssues: z.string().max(1000).optional(),
+  medications: z.string().max(1000).optional(),
 });
 
 export const profileUpdateSchema = z.object({
   name: nameSchema.optional(),
   weightKg: z.coerce.number().min(20).max(400).optional(),
   heightCm: z.coerce.number().int().min(50).max(250).optional(),
+  avatarUrl: z.string().max(400_000).refine((value) => {
+    if (/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/]+=*$/.test(value)) return true;
+    try {
+      const url = new URL(value);
+      return url.protocol === 'https:' || url.protocol === 'http:';
+    } catch {
+      return false;
+    }
+  }, 'Informe uma URL ou imagem v\u00e1lida').nullable().optional(),
 });
 
 export const paymentSchema = z.object({
@@ -80,6 +93,11 @@ export const paymentSchema = z.object({
   payer: z.object({
     email: z.string().email('Email do pagador inválido'),
   }),
+});
+
+export const checkoutPreferenceSchema = z.object({
+  planId: z.enum(['mensal', 'anual']),
+  platform: z.enum(['web', 'native']).default('native'),
 });
 
 export const chatSchema = z.object({
@@ -115,9 +133,17 @@ export const socialCommentSchema = z.object({
 
 export const friendRequestSchema = z.object({
   addresseeId: z.string().uuid().optional(),
+  addresseeEmail: emailSchema.optional(),
   action: z.enum(['request', 'respond']).optional(),
   friendshipId: z.string().uuid().optional(),
-});
+  response: z.enum(['accept', 'reject']).optional(),
+}).refine(
+  (value) =>
+    value.action === 'respond'
+      ? !!value.friendshipId && !!value.response
+      : !!value.addresseeId || !!value.addresseeEmail,
+  { message: 'Informe o amigo ou a solicitação que deseja atualizar' },
+);
 
 export const messageSchema = z.object({
   receiverId: z.string().uuid(),
@@ -127,6 +153,21 @@ export const messageSchema = z.object({
 export const challengeJoinSchema = z.object({
   challengeId: z.string().uuid(),
 });
+
+export const challengeCreateSchema = z
+  .object({
+    title: z.string().trim().min(3).max(120),
+    description: z.string().trim().max(500).optional(),
+    type: z.enum(['distance', 'workouts', 'calories', 'custom']),
+    goalValue: z.coerce.number().positive().max(100000000),
+    startDate: z.string().datetime(),
+    endDate: z.string().datetime(),
+  })
+  .refine(
+    (value) =>
+      new Date(value.endDate).getTime() > new Date(value.startDate).getTime(),
+    { message: 'A data de encerramento deve ser posterior ao início.' },
+  );
 
 export const dietPlanSchema = z.object({
   title: z.string().min(1).max(200),

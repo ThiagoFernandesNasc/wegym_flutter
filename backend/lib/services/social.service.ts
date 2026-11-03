@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma';
+import { NotFoundError } from '@/lib/errors';
 
 export const socialService = {
   async createPost(userId: string, data: { text?: string; workoutId?: string; imageUrl?: string }) {
@@ -12,9 +13,21 @@ export const socialService = {
       take: limit,
       orderBy: { createdAt: 'desc' },
       include: {
-        user: { select: { id: true, displayName: true, avatarUrl: true } },
+        user: {
+          select: {
+            id: true, displayName: true, avatarUrl: true,
+            athlete: { select: { name: true } },
+            personal: { select: { name: true } },
+          },
+        },
         likes: { select: { userId: true } },
-        comments: { select: { id: true, text: true, userId: true, createdAt: true, user: { select: { displayName: true } } } },
+        comments: { select: { id: true, text: true, userId: true, createdAt: true, user: {
+            select: {
+              displayName: true,
+              athlete: { select: { name: true } },
+              personal: { select: { name: true } },
+            },
+          } } },
         _count: { select: { likes: true, comments: true } },
       },
     });
@@ -31,9 +44,21 @@ export const socialService = {
       orderBy: { createdAt: 'desc' },
       take: 50,
       include: {
-        user: { select: { id: true, displayName: true, avatarUrl: true } },
+        user: {
+          select: {
+            id: true, displayName: true, avatarUrl: true,
+            athlete: { select: { name: true } },
+            personal: { select: { name: true } },
+          },
+        },
         likes: { select: { userId: true } },
-        comments: { select: { id: true, text: true, userId: true, createdAt: true, user: { select: { displayName: true } } } },
+        comments: { select: { id: true, text: true, userId: true, createdAt: true, user: {
+            select: {
+              displayName: true,
+              athlete: { select: { name: true } },
+              personal: { select: { name: true } },
+            },
+          } } },
         _count: { select: { likes: true, comments: true } },
       },
     });
@@ -63,8 +88,17 @@ export const socialService = {
     });
   },
 
-  async respondToFriend(friendshipId: string, status: 'accepted' | 'blocked') {
-    return prisma.friendship.update({ where: { id: friendshipId }, data: { status } });
+  async respondToFriend(
+    friendshipId: string,
+    userId: string,
+    status: 'accepted' | 'rejected',
+  ) {
+    const request = await prisma.friendship.findFirst({
+      where: { id: friendshipId, addresseeId: userId, status: 'pending' },
+      select: { id: true },
+    });
+    if (!request) throw new NotFoundError('Solicitação de amizade');
+    return prisma.friendship.update({ where: { id: request.id }, data: { status } });
   },
 
   async getFriends(userId: string) {
@@ -76,5 +110,52 @@ export const socialService = {
       },
     });
     return friendships.map((f) => (f.requesterId === userId ? f.addressee : f.requester));
+  },
+
+  async getFriendRequests(userId: string) {
+    const [friends, incoming, outgoing] = await Promise.all([
+      prisma.friendship.findMany({
+        where: {
+          OR: [{ requesterId: userId }, { addresseeId: userId }],
+          status: 'accepted',
+        },
+        include: {
+          requester: { select: { id: true, displayName: true, avatarUrl: true } },
+          addressee: { select: { id: true, displayName: true, avatarUrl: true } },
+        },
+        orderBy: { updatedAt: 'desc' },
+      }),
+      prisma.friendship.findMany({
+        where: { addresseeId: userId, status: 'pending' },
+        include: {
+          requester: { select: { id: true, displayName: true, avatarUrl: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+      prisma.friendship.findMany({
+        where: { requesterId: userId, status: 'pending' },
+        include: {
+          addressee: { select: { id: true, displayName: true, avatarUrl: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+    ]);
+    return {
+      friends: friends.map((f) =>
+        f.requesterId === userId ? f.addressee : f.requester,
+      ),
+      incomingRequests: incoming.map((f) => ({
+        friendshipId: f.id,
+        status: f.status,
+        createdAt: f.createdAt,
+        ...f.requester,
+      })),
+      outgoingRequests: outgoing.map((f) => ({
+        friendshipId: f.id,
+        status: f.status,
+        createdAt: f.createdAt,
+        ...f.addressee,
+      })),
+    };
   },
 };

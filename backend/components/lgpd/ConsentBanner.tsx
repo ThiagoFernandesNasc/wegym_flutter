@@ -4,35 +4,47 @@ import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
 import { useTranslations } from '@/lib/i18n/hook';
-import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 
 const LGPD_CONSENT_KEY = 'wegym_lgpd_consent';
 
 export function ConsentBanner() {
   const { t } = useTranslations();
-  const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
-    setVisible(!localStorage.getItem(LGPD_CONSENT_KEY));
+    const timer = window.setTimeout(() => {
+      try {
+        setVisible(!window.localStorage.getItem(LGPD_CONSENT_KEY));
+      } catch {
+        setVisible(true);
+      }
+      setMounted(true);
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, []);
 
-  const accept = async () => {
+  const accept = () => {
+    const acceptedAt = new Date().toISOString();
     try {
-      await fetch('/api/user/consent', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ termsAccepted: true, privacyAccepted: true, dataConsent: true }),
-      });
-      localStorage.setItem(LGPD_CONSENT_KEY, new Date().toISOString());
-      setVisible(false);
-      toast.success(t('consent.accepted'));
-    } catch (err) {
-      toast.error(t('consent.error'));
+      localStorage.setItem(LGPD_CONSENT_KEY, acceptedAt);
+    } catch {
+      // Keep the banner dismissible even when browser storage is unavailable.
     }
+    setVisible(false);
+    toast.success(t('consent.accepted'));
+
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 5000);
+    void fetch('/api/user/consent', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ termsAccepted: true, privacyAccepted: true, dataConsent: true }),
+      signal: controller.signal,
+    })
+      .catch(() => undefined)
+      .finally(() => window.clearTimeout(timeout));
   };
 
   if (!mounted) return null;
@@ -44,7 +56,8 @@ export function ConsentBanner() {
           initial={{ y: 100, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: 100, opacity: 0 }}
-          className="fixed bottom-0 left-0 right-0 z-200 p-4 sm:p-6"
+          className="fixed bottom-0 left-0 right-0 z-[9999] p-4 sm:p-6"
+          style={{ zIndex: 9999, pointerEvents: 'auto' }}
         >
           <div className="max-w-4xl mx-auto bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl p-5 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center gap-4">
             <div className="flex-1 space-y-2">
@@ -74,7 +87,10 @@ export function ConsentBanner() {
               </Link>
               <button
                 type="button"
-                onClick={accept}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  accept();
+                }}
                 className="px-6 py-2.5 bg-orange-600 hover:bg-orange-700 text-white text-xs font-black uppercase italic rounded-xl transition-colors cursor-pointer"
               >
                 {t('consent.accept')}

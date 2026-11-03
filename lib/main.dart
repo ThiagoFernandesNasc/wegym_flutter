@@ -1,10 +1,24 @@
 import 'dart:async';
+import 'dart:math' as math;
+import 'package:app_links/app_links.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'api.dart';
+import 'ai_coach_sheet.dart';
 import 'dashboard.dart';
 import 'workout_builder.dart';
 import 'figma_modules.dart';
 import 'stitch_design_system.dart';
+import 'device_frame_preview.dart';
+import 'payment_return_link.dart';
+import 'integration_return_link.dart';
+import 'gps_session_page.dart';
+import 'modality_session_page.dart';
+import 'training_modalities.dart';
+import 'ble_monitor_page.dart';
+import 'legal_document_page.dart';
+import 'onboarding_tour.dart';
+import 'profile_avatar.dart';
 
 const background = stitchCanvas;
 const surface = stitchSurface;
@@ -27,17 +41,71 @@ const appModules = <int, String>{
   14: 'Check-in',
   15: 'Amigos',
   16: 'Aulas',
+  18: 'Atividade GPS',
+  19: 'Wearables & Sensores',
+  20: 'Conquistas',
 };
+
+double? _heightCentimeters(String raw) {
+  final value = double.tryParse(raw.trim().replaceAll(',', '.'));
+  if (value == null) return null;
+  return value <= 3 ? value * 100 : value;
+}
 
 void main() => runApp(const WegymApp());
 
-class WegymApp extends StatelessWidget {
+class WegymApp extends StatefulWidget {
   const WegymApp({super.key});
+
+  @override
+  State<WegymApp> createState() => _WegymAppState();
+}
+
+class _WegymAppState extends State<WegymApp> {
+  StreamSubscription<Uri>? _linkSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    if (kIsWeb && isPaymentReturnUri(Uri.base)) {
+      paymentReturnLink.value = Uri.base;
+    }
+    if (kIsWeb && isIntegrationReturnUri(Uri.base)) {
+      integrationReturnLink.value = Uri.base;
+    }
+    final links = AppLinks();
+    _linkSubscription = links.uriLinkStream.listen((uri) {
+      if (isPaymentReturnUri(uri)) paymentReturnLink.value = uri;
+      if (isIntegrationReturnUri(uri)) integrationReturnLink.value = uri;
+    });
+    unawaited(
+      links
+          .getInitialLink()
+          .then((uri) {
+            if (uri != null && isPaymentReturnUri(uri)) {
+              paymentReturnLink.value = uri;
+            }
+            if (uri != null && isIntegrationReturnUri(uri)) {
+              integrationReturnLink.value = uri;
+            }
+          })
+          .catchError((_) {}),
+    );
+  }
+
+  @override
+  void dispose() {
+    _linkSubscription?.cancel();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'WEGYM',
       debugShowCheckedModeBanner: false,
+      builder: (context, child) =>
+          DeviceFramePreview(child: child ?? const SizedBox.shrink()),
       theme: ThemeData(
         brightness: Brightness.dark,
         scaffoldBackgroundColor: background,
@@ -74,28 +142,99 @@ class _AuthGateState extends State<AuthGate> {
   late Future<String?> _token = Api.token();
   String? _demoRole;
   bool _loadingDemoRole = const bool.fromEnvironment('PREVIEW_DASHBOARD');
+  bool _usingDemoData = false;
 
   @override
   void initState() {
     super.initState();
-    if (_loadingDemoRole) _restoreDemoRole();
+    if (_loadingDemoRole) {
+      if (const bool.fromEnvironment('PREVIEW_REQUIRE_LOGIN')) {
+        unawaited(_prepareDemoLogin());
+      } else {
+        _restoreDemoRole();
+      }
+    }
+  }
+
+  Future<void> _prepareDemoLogin() async {
+    try {
+      await Api.restoreDemoSession();
+      final token = await Api.token();
+      if (token != null && !Api.isDemoSession) {
+        final profile = await Api.profile();
+        final role = profile['role']?.toString();
+        if (role == 'atleta' || role == 'personal') {
+          await Api.setPreviewRole(role);
+          if (!mounted) return;
+          setState(() {
+            _demoRole = role;
+            _usingDemoData = false;
+            _loadingDemoRole = false;
+          });
+          return;
+        }
+      }
+    } catch (_) {
+      await Api.logout();
+    }
+    try {
+      await Api.setPreviewRole(null);
+      await Api.setDemoSession(false);
+    } catch (_) {
+      // A tela de login permanece disponÃƒÆ’Ã‚Â­vel se o armazenamento estiver bloqueado.
+    }
+    if (!mounted) return;
+    setState(() {
+      _demoRole = null;
+      _usingDemoData = false;
+      _loadingDemoRole = false;
+    });
   }
 
   Future<void> _restoreDemoRole() async {
     String? savedRole;
+    var demoData = false;
     try {
+      demoData = await Api.restoreDemoSession();
       savedRole = await Api.previewRole();
+      if (!demoData && await Api.token() != null) {
+        final profile = await Api.profile();
+        savedRole = profile['role']?.toString();
+      }
     } catch (_) {
-      // A prévia continua abrindo mesmo se o navegador bloquear o armazenamento.
+      // A prÃƒÆ’Ã‚Â©via continua disponÃƒÆ’Ã‚Â­vel se o navegador ou o servidor estiver indisponÃƒÆ’Ã‚Â­vel.
     }
     if (!mounted) return;
     setState(() {
       _demoRole = savedRole;
+      _usingDemoData = demoData;
       _loadingDemoRole = false;
     });
   }
 
   void _refresh() => setState(() => _token = Api.token());
+
+  Future<void> _handleSuccessfulLogin(String role) async {
+    await showOnboardingIfNeeded(context, role: role);
+    if (!mounted) return;
+    if (const bool.fromEnvironment('PREVIEW_DASHBOARD')) {
+      try {
+        await Api.setPreviewRole(role);
+        await Api.setRegisterMode(false);
+      } catch (_) {
+        // Keep the presentation login usable if browser storage is unavailable.
+      }
+      if (mounted) {
+        setState(() {
+          _demoRole = role;
+          _usingDemoData = Api.isDemoSession;
+        });
+      }
+      return;
+    }
+    _refresh();
+  }
+
   @override
   Widget build(BuildContext context) {
     if (const bool.fromEnvironment('PREVIEW_DASHBOARD')) {
@@ -107,22 +246,19 @@ class _AuthGateState extends State<AuthGate> {
       final role = _demoRole;
       if (role == null) {
         return LoginPage(
-          onLogin: (selectedRole) async {
-            try {
-              await Api.setPreviewRole(selectedRole);
-              await Api.setRegisterMode(false);
-            } catch (_) {
-              // A navegação de demonstração não depende de armazenamento local.
-            }
-            if (mounted) setState(() => _demoRole = selectedRole);
-          },
+          onLogin: (selectedRole) =>
+              unawaited(_handleSuccessfulLogin(selectedRole)),
         );
       }
       return AppShell(
-        demoRole: role,
+        demoRole: _usingDemoData ? role : null,
         onLogout: () {
           unawaited(Api.clearPreviewState());
-          if (mounted) setState(() => _demoRole = null);
+          if (mounted)
+            setState(() {
+              _demoRole = null;
+              _usingDemoData = false;
+            });
         },
       );
     }
@@ -135,7 +271,9 @@ class _AuthGateState extends State<AuthGate> {
           );
         }
         if ((snapshot.data ?? '').isEmpty) {
-          return LoginPage(onLogin: (_) => _refresh());
+          return LoginPage(
+            onLogin: (role) => unawaited(_handleSuccessfulLogin(role)),
+          );
         }
         return AppShell(onLogout: _refresh);
       },
@@ -150,24 +288,66 @@ class LoginPage extends StatefulWidget {
   State<LoginPage> createState() => _LoginPageState();
 }
 
-class _LoginPageState extends State<LoginPage> {
+class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   final _pageScroll = ScrollController();
+  final _parallaxPointer = ValueNotifier<Offset>(Offset.zero);
+  late final AnimationController _ambientMotion = AnimationController(
+    vsync: this,
+    duration: const Duration(seconds: 12),
+  )..repeat();
+  late final AnimationController _introMotion = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1100),
+  );
+  late final AnimationController _formMotion = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 260),
+    value: 1,
+  );
   final _email = TextEditingController();
   final _password = TextEditingController();
+  final _confirmPassword = TextEditingController();
   final _name = TextEditingController();
   final _credential = TextEditingController();
+  final _cep = TextEditingController();
+  final _city = TextEditingController();
+  final _state = TextEditingController();
+  final _age = TextEditingController();
+  final _height = TextEditingController();
+  final _weight = TextEditingController();
+  final _injury = TextEditingController();
+  final _healthIssues = TextEditingController();
+  final _medications = TextEditingController();
   bool _busy = false;
   bool _register = false;
   bool _remember = true;
   bool _acceptTerms = false;
+  bool _acceptPrivacy = false;
+  bool _acceptData = false;
   bool _showPassword = false;
+  bool _verifyingCref = false;
+  bool _lookingUpCep = false;
+  int _cepLookupGeneration = 0;
+  String _cepNotice = '';
+  String? _verifiedCrefValue;
   String _userType = 'atleta';
+  String? _sex;
+  String? _experienceLevel;
   String _error = '';
+  double _formSlideDirection = -1;
+  bool _switchingRegisterMode = false;
+  bool _submitHovered = false;
+  bool _submitPressed = false;
+
+  bool get _crefVerified =>
+      _verifiedCrefValue == _credential.text.trim().toUpperCase() &&
+      _verifiedCrefValue != null;
 
   @override
   void initState() {
     super.initState();
+    _introMotion.forward();
     if (const bool.fromEnvironment('PREVIEW_DASHBOARD')) {
       Api.registerMode()
           .then((savedMode) {
@@ -180,22 +360,36 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   void _setRegisterMode(bool register) {
+    if (_register == register || _switchingRegisterMode) return;
+    unawaited(_animateRegisterMode(register));
+  }
+
+  Future<void> _animateRegisterMode(bool register) async {
+    _switchingRegisterMode = true;
+    _formSlideDirection = register ? 1 : -1;
+    await _formMotion.reverse();
+    if (!mounted) return;
     setState(() {
       _register = register;
       _error = '';
+      _verifiedCrefValue = null;
+      _acceptTerms = false;
+      _acceptPrivacy = false;
+      _acceptData = false;
     });
     if (const bool.fromEnvironment('PREVIEW_DASHBOARD')) {
       unawaited(Api.setRegisterMode(register).catchError((_) {}));
     }
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_pageScroll.hasClients) {
-        _pageScroll.animateTo(
-          0,
-          duration: const Duration(milliseconds: 260),
-          curve: Curves.easeOutCubic,
-        );
-      }
-    });
+    await _formMotion.forward();
+    if (!mounted) return;
+    setState(() => _switchingRegisterMode = false);
+    if (_pageScroll.hasClients) {
+      await _pageScroll.animateTo(
+        0,
+        duration: const Duration(milliseconds: 260),
+        curve: Curves.easeOutCubic,
+      );
+    }
   }
 
   static const _demoPassword = '123456';
@@ -211,11 +405,89 @@ class _LoginPageState extends State<LoginPage> {
     });
   }
 
+  Future<void> _lookupCep(String value) async {
+    final digits = value.replaceAll(RegExp(r'\D'), '');
+    if (digits.length != 8) return;
+    final generation = ++_cepLookupGeneration;
+    setState(() {
+      _lookingUpCep = true;
+      _cepNotice = '';
+    });
+    try {
+      final address = await Api.lookupAddressByCep(digits);
+      if (!mounted ||
+          generation != _cepLookupGeneration ||
+          _cep.text.replaceAll(RegExp(r'\D'), '') != digits) {
+        return;
+      }
+      if (address == null) {
+        setState(
+          () => _cepNotice = 'CEP n\u00e3o encontrado. Confira o n\u00famero.',
+        );
+        return;
+      }
+      setState(() {
+        _city.text = address['city']?.toString() ?? '';
+        _state.text = address['state']?.toString() ?? '';
+        _cepNotice = _city.text.isEmpty
+            ? 'Preencha a cidade e o estado manualmente.'
+            : 'Cidade e estado preenchidos pelo CEP.';
+      });
+    } catch (_) {
+      if (mounted && generation == _cepLookupGeneration) {
+        setState(
+          () => _cepNotice = 'Busca indispon\u00edvel; preencha manualmente.',
+        );
+      }
+    } finally {
+      if (mounted && generation == _cepLookupGeneration) {
+        setState(() => _lookingUpCep = false);
+      }
+    }
+  }
+
+  Future<void> _verifyCref() async {
+    final cref = _credential.text.trim().toUpperCase();
+    if (cref.isEmpty) {
+      setState(() => _error = 'Informe o CREF para validar.');
+      return;
+    }
+    setState(() {
+      _verifyingCref = true;
+      _verifiedCrefValue = null;
+      _error = '';
+    });
+    try {
+      final result = await Api.validateCref(cref);
+      if (result['valid'] != true) {
+        final errors = result['errors'];
+        throw Exception(
+          errors is List && errors.isNotEmpty
+              ? errors.first.toString()
+              : 'CREF inválido.',
+        );
+      }
+      if (mounted) {
+        setState(() {
+          _verifiedCrefValue = result['normalizedCref']?.toString() ?? cref;
+        });
+      }
+    } catch (error) {
+      if (mounted) setState(() => _error = error.toString());
+    } finally {
+      if (mounted) setState(() => _verifyingCref = false);
+    }
+  }
+
   Future<void> _submit() async {
-    if (_register && !_acceptTerms) {
+    if (_register && _userType == 'personal' && !_crefVerified) {
+      setState(() => _error = 'Valide o CREF antes de continuar.');
+      return;
+    }
+    if (_register && !(_acceptTerms && _acceptPrivacy && _acceptData)) {
       setState(
         () => _error =
-            'Aceite os Termos de Uso e a Política de Privacidade para continuar.',
+            'Aceite separadamente os Termos, a Pol\u00edtica de Privacidade e o tratamento de dados.',
       );
       return;
     }
@@ -232,42 +504,82 @@ class _LoginPageState extends State<LoginPage> {
           'userType': _userType,
           'name': _name.text.trim(),
           if (_userType == 'personal') 'cref': _credential.text.trim(),
-          if (_userType == 'atleta') 'cpf': _credential.text.trim(),
-          'termsAccepted': true,
-          'privacyAccepted': true,
+          if (_userType == 'atleta') ...{
+            'cpf': _credential.text.replaceAll(RegExp(r'\D'), ''),
+            'cep': _cep.text.trim(),
+            'city': _city.text.trim(),
+            'state': _state.text.trim().toUpperCase(),
+            'age': int.parse(_age.text),
+            'sex': _sex,
+            'height': _heightCentimeters(_height.text)!,
+            'weight': double.parse(_weight.text.replaceAll(',', '.')),
+            'experienceLevel': _experienceLevel,
+            'injury': _injury.text.trim().isEmpty ? null : _injury.text.trim(),
+            'healthIssues': _healthIssues.text.trim().isEmpty
+                ? null
+                : _healthIssues.text.trim(),
+            'medications': _medications.text.trim().isEmpty
+                ? null
+                : _medications.text.trim(),
+          },
+          'termsAccepted': _acceptTerms,
+          'privacyAccepted': _acceptPrivacy,
+          'dataConsentAccepted': _acceptData,
         });
+        if (!mounted) return;
+        await showOnboardingIfNeeded(context, role: _userType);
+        if (!mounted) return;
         setState(() {
           _register = false;
-          _error = 'Cadastro concluído. Entre com sua conta.';
+          _error = 'Cadastro conclu\u00eddo. Entre com sua conta.';
         });
         return;
       }
       if (const bool.fromEnvironment('PREVIEW_DASHBOARD')) {
         final email = _email.text.trim().toLowerCase();
-        final role = switch (email) {
+        final demoRole = switch (email) {
           'joao@wegym.com.br' => 'atleta',
           'personal@wegym.com.br' => 'personal',
           _ => null,
         };
-        if (role == null || _password.text != _demoPassword) {
-          throw Exception(
-            'Use um dos acessos de demonstração exibidos abaixo.',
-          );
-        }
         try {
-          await Api.login(email, _password.text);
-        } catch (_) {
-          // A prévia de apresentação deve abrir mesmo sem o Next.js local.
-          // As credenciais já foram validadas contra as contas de demonstração acima.
-          await Api.logout();
+          final authenticatedRole = await Api.login(email, _password.text);
+          widget.onLogin(authenticatedRole ?? _userType);
+          return;
+        } catch (error) {
+          if (demoRole != null && _password.text == _demoPassword) {
+            // MantÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â©m os acessos de demonstraÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â£o disponÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­veis sem o backend.
+            await Api.logout();
+            await Api.setDemoSession(true);
+            widget.onLogin(demoRole);
+            return;
+          }
+          rethrow;
         }
-        widget.onLogin(role);
-        return;
       }
-      await Api.login(_email.text.trim(), _password.text);
-      widget.onLogin(_userType);
+      final authenticatedRole = await Api.login(
+        _email.text.trim(),
+        _password.text,
+      );
+      widget.onLogin(authenticatedRole ?? _userType);
     } catch (error) {
-      setState(() => _error = error.toString());
+      final duplicateEmail =
+          _register &&
+          error is ApiResponseException &&
+          error.statusCode == 409 &&
+          error.message.toLowerCase().contains('cadastro');
+      if (duplicateEmail) {
+        setState(() {
+          _register = false;
+          _error =
+              'Este e-mail j\u00e1 est\u00e1 cadastrado. Entre com o e-mail e a senha informados.';
+        });
+        if (const bool.fromEnvironment('PREVIEW_DASHBOARD')) {
+          unawaited(Api.setRegisterMode(false));
+        }
+      } else {
+        setState(() => _error = error.toString());
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -275,11 +587,25 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   void dispose() {
+    _ambientMotion.dispose();
+    _introMotion.dispose();
+    _formMotion.dispose();
+    _parallaxPointer.dispose();
     _pageScroll.dispose();
     _email.dispose();
     _password.dispose();
+    _confirmPassword.dispose();
     _name.dispose();
     _credential.dispose();
+    _cep.dispose();
+    _city.dispose();
+    _state.dispose();
+    _age.dispose();
+    _height.dispose();
+    _weight.dispose();
+    _injury.dispose();
+    _healthIssues.dispose();
+    _medications.dispose();
     super.dispose();
   }
 
@@ -290,8 +616,13 @@ class _LoginPageState extends State<LoginPage> {
     TextInputType? keyboard,
     bool externalLabel = false,
     String? hint,
+    ValueChanged<String>? onChanged,
+    Key? key,
+    String? Function(String?)? validator,
   }) => TextFormField(
+    key: key,
     controller: controller,
+    onChanged: onChanged,
     keyboardType: keyboard,
     obscureText: secret && !_showPassword,
     style: const TextStyle(color: lightText),
@@ -333,24 +664,28 @@ class _LoginPageState extends State<LoginPage> {
         borderSide: const BorderSide(color: accent, width: 1.3),
       ),
     ),
-    validator: (value) {
-      final text = value?.trim() ?? '';
-      if (secret && text.length < (_register ? 8 : 6)) {
-        return _register
-            ? 'Use pelo menos 8 caracteres.'
-            : 'Informe sua senha.';
-      }
-      if (!secret && label == 'E-mail' && !text.contains('@')) {
-        return 'Informe um e-mail válido.';
-      }
-      if (_register && label == 'Nome' && text.length < 3) {
-        return 'Informe seu nome completo.';
-      }
-      if (_register && label == 'CPF / CREF' && text.isEmpty) {
-        return 'Informe seu CPF ou CREF.';
-      }
-      return null;
-    },
+    validator:
+        validator ??
+        (value) {
+          final text = value?.trim() ?? '';
+          if (secret && text.length < (_register ? 8 : 6)) {
+            return _register
+                ? 'Use pelo menos 8 caracteres.'
+                : 'Informe sua senha.';
+          }
+          if (!secret && label == 'E-mail' && !text.contains('@')) {
+            return 'Informe um e-mail válido.';
+          }
+          if (_register && label == 'Nome' && text.length < 3) {
+            return 'Informe seu nome completo.';
+          }
+          if (_register &&
+              (label == 'CPF / CREF' || label == 'CPF' || label == 'CREF') &&
+              text.isEmpty) {
+            return label == 'CREF' ? 'Informe seu CREF.' : 'Informe seu CPF.';
+          }
+          return null;
+        },
   );
 
   Future<void> _recover() async {
@@ -565,7 +900,22 @@ class _LoginPageState extends State<LoginPage> {
     ),
   );
 
-  Widget _loginForm() => Container(
+  Widget _loginForm() => AnimatedBuilder(
+    animation: _formMotion,
+    child: _loginFormPanel(),
+    builder: (context, child) {
+      final progress = Curves.easeOutCubic.transform(_formMotion.value);
+      return Opacity(
+        opacity: progress,
+        child: Transform.translate(
+          offset: Offset(_formSlideDirection * (1 - progress) * 12, 0),
+          child: child,
+        ),
+      );
+    },
+  );
+
+  Widget _loginFormPanel() => Container(
     decoration: BoxDecoration(
       color: const Color(0xFF19191D),
       borderRadius: BorderRadius.circular(22),
@@ -598,7 +948,7 @@ class _LoginPageState extends State<LoginPage> {
             ),
             const SizedBox(height: 10),
             Text(
-              _register ? 'CRIE SUA CONTA' : 'ENTRE NO WEGYM OS',
+              _register ? 'CRIE SUA CONTA' : 'LOGIN',
               style: const TextStyle(
                 color: lightText,
                 fontSize: 29,
@@ -611,7 +961,7 @@ class _LoginPageState extends State<LoginPage> {
             Text(
               _register
                   ? 'Comece seu acompanhamento no WeGYM.'
-                  : 'Use suas credenciais para sincronizar sua carga de treino.',
+                  : 'Pronto para o treino de hoje?',
               style: const TextStyle(
                 color: softText,
                 fontSize: 12,
@@ -660,41 +1010,291 @@ class _LoginPageState extends State<LoginPage> {
             ],
             const SizedBox(height: 16),
             if (_register) ...[
-              _field(_name, 'Nome'),
-              const SizedBox(height: 10),
               SegmentedButton<String>(
                 segments: const [
                   ButtonSegment(value: 'atleta', label: Text('Atleta')),
                   ButtonSegment(value: 'personal', label: Text('Personal')),
                 ],
                 selected: {_userType},
-                onSelectionChanged: (v) => setState(() => _userType = v.first),
+                onSelectionChanged: (v) => setState(() {
+                  _userType = v.first;
+                  _credential.clear();
+                  _verifiedCrefValue = null;
+                  _acceptTerms = false;
+                  _acceptPrivacy = false;
+                  _acceptData = false;
+                  _error = '';
+                }),
               ),
-              const SizedBox(height: 10),
-              _field(_credential, 'CPF / CREF'),
-              const SizedBox(height: 10),
+              const SizedBox(height: 12),
+              if (_userType == 'personal' && !_crefVerified) ...[
+                _field(
+                  _credential,
+                  'CREF',
+                  key: const ValueKey('signup-credential'),
+                  onChanged: (value) {
+                    if (_verifiedCrefValue != value.trim().toUpperCase()) {
+                      setState(() {
+                        _verifiedCrefValue = null;
+                        _error = '';
+                      });
+                    }
+                  },
+                ),
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  key: const ValueKey('validate-cref'),
+                  onPressed: _busy || _verifyingCref ? null : _verifyCref,
+                  icon: _verifyingCref
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.verified_user_outlined),
+                  label: Text(
+                    _verifyingCref ? 'VALIDANDO CREF' : 'VALIDAR CREF',
+                  ),
+                ),
+              ],
+              if (_userType == 'personal' && _crefVerified) ...[
+                const ListTile(
+                  dense: true,
+                  leading: Icon(Icons.check_circle, color: positive),
+                  title: Text('CREF validado'),
+                ),
+                _field(_name, 'Nome', key: const ValueKey('signup-name')),
+              ],
+              if (_userType == 'atleta') ...[
+                _field(_name, 'Nome', key: const ValueKey('signup-name')),
+                const SizedBox(height: 10),
+                _field(
+                  _credential,
+                  'CPF',
+                  key: const ValueKey('signup-credential'),
+                  keyboard: TextInputType.number,
+                  validator: (value) {
+                    final digits = (value ?? '').replaceAll(RegExp(r'\D'), '');
+                    return digits.length == 11
+                        ? null
+                        : 'Informe um CPF com 11 d\u00edgitos.';
+                  },
+                ),
+                const SizedBox(height: 10),
+                _field(
+                  _cep,
+                  'CEP',
+                  key: const ValueKey('signup-cep'),
+                  keyboard: TextInputType.number,
+                  validator: (value) {
+                    final digits = (value ?? '').replaceAll(RegExp(r'\D'), '');
+                    return digits.length == 8
+                        ? null
+                        : 'Informe um CEP v\u00e1lido.';
+                  },
+                  onChanged: (value) {
+                    _cepLookupGeneration++;
+                    if (value.replaceAll(RegExp(r'\D'), '').length == 8) {
+                      unawaited(_lookupCep(value));
+                    } else {
+                      setState(() {
+                        _lookingUpCep = false;
+                        _cepNotice = '';
+                      });
+                    }
+                  },
+                ),
+                if (_lookingUpCep) const LinearProgressIndicator(minHeight: 2),
+                if (_cepNotice.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      _cepNotice,
+                      style: const TextStyle(color: softText, fontSize: 10),
+                    ),
+                  ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      flex: 3,
+                      child: _field(
+                        _city,
+                        'Cidade',
+                        key: const ValueKey('signup-city'),
+                        validator: (value) =>
+                            (value?.trim().isNotEmpty ?? false)
+                            ? null
+                            : 'Informe a cidade.',
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _field(
+                        _state,
+                        'UF',
+                        key: const ValueKey('signup-state'),
+                        validator: (value) => (value?.trim().length ?? 0) == 2
+                            ? null
+                            : 'Use a sigla do estado.',
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _field(
+                        _age,
+                        'Idade',
+                        key: const ValueKey('signup-age'),
+                        keyboard: TextInputType.number,
+                        validator: (value) {
+                          final age = int.tryParse(value ?? '');
+                          return age != null && age >= 12 && age <= 120
+                              ? null
+                              : 'Use uma idade entre 12 e 120.';
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _field(
+                        _height,
+                        'Altura (m ou cm)',
+                        key: const ValueKey('signup-height'),
+                        keyboard: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        validator: (value) {
+                          final height = _heightCentimeters(value ?? '');
+                          return height != null && height >= 50 && height <= 250
+                              ? null
+                              : 'Informe entre 0,50 e 2,50 m (ou 50 a 250 cm).';
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _field(
+                        _weight,
+                        'Peso (kg)',
+                        key: const ValueKey('signup-weight'),
+                        keyboard: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        validator: (value) {
+                          final weight = double.tryParse(
+                            (value ?? '').replaceAll(',', '.'),
+                          );
+                          return weight != null && weight >= 20 && weight <= 400
+                              ? null
+                              : 'Use peso entre 20 e 400 kg.';
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                DropdownButtonFormField<String>(
+                  key: const ValueKey('signup-sex'),
+                  initialValue: _sex,
+                  decoration: const InputDecoration(labelText: 'Sexo'),
+                  items: const [
+                    DropdownMenuItem(
+                      value: 'masculino',
+                      child: Text('Masculino'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'feminino',
+                      child: Text('Feminino'),
+                    ),
+                    DropdownMenuItem(value: 'outro', child: Text('Outro')),
+                  ],
+                  validator: (value) =>
+                      value == null ? 'Selecione uma op\u00e7\u00e3o.' : null,
+                  onChanged: (value) => setState(() => _sex = value),
+                ),
+                const SizedBox(height: 10),
+                DropdownButtonFormField<String>(
+                  key: const ValueKey('signup-experience'),
+                  initialValue: _experienceLevel,
+                  decoration: const InputDecoration(
+                    labelText: 'Experi\u00eancia',
+                  ),
+                  items: const [
+                    DropdownMenuItem(
+                      value: 'iniciante',
+                      child: Text('Iniciante'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'intermediario',
+                      child: Text('Intermedi\u00e1rio'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'avancado',
+                      child: Text('Avan\u00e7ado'),
+                    ),
+                  ],
+                  validator: (value) =>
+                      value == null ? 'Selecione o n\u00edvel.' : null,
+                  onChanged: (value) =>
+                      setState(() => _experienceLevel = value),
+                ),
+                const SizedBox(height: 10),
+                _field(_injury, 'Les\u00f5es (opcional)'),
+                const SizedBox(height: 10),
+                _field(
+                  _healthIssues,
+                  'Condi\u00e7\u00f5es de sa\u00fade (opcional)',
+                ),
+                const SizedBox(height: 10),
+                _field(_medications, 'Medicamentos (opcional)'),
+              ],
+              if (_userType == 'personal' && _crefVerified) ...[
+                const SizedBox(height: 10),
+              ],
             ],
-            if (!_register)
-              _loginFieldLabel(
-                'E-MAIL INSTITUCIONAL OU MATRÍCULA',
-                trailing: '#WG-CODE',
+            if (!_register || _userType == 'atleta' || _crefVerified) ...[
+              if (!_register)
+                _loginFieldLabel(
+                  'E-MAIL INSTITUCIONAL OU MATRÍCULA',
+                  trailing: '#WG-CODE',
+                ),
+              _field(
+                _email,
+                'E-mail',
+                key: _register ? const ValueKey('signup-email') : null,
+                keyboard: TextInputType.emailAddress,
+                externalLabel: !_register,
+                hint: _register ? null : 'ex.: nome@atleta.com ou #WG-9842',
               ),
-            _field(
-              _email,
-              'E-mail',
-              keyboard: TextInputType.emailAddress,
-              externalLabel: !_register,
-              hint: _register ? null : 'ex.: nome@atleta.com ou #WG-9842',
-            ),
-            const SizedBox(height: 10),
-            if (!_register) _loginFieldLabel('CHAVE DE ACESSO / SENHA'),
-            _field(
-              _password,
-              'Senha',
-              secret: true,
-              externalLabel: !_register,
-              hint: _register ? null : '••••••••••••',
-            ),
+              const SizedBox(height: 10),
+              if (!_register) _loginFieldLabel('CHAVE DE ACESSO / SENHA'),
+              _field(
+                _password,
+                'Senha',
+                key: _register ? const ValueKey('signup-password') : null,
+                secret: true,
+                externalLabel: !_register,
+                hint: _register
+                    ? null
+                    : '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022',
+              ),
+              if (_register) ...[
+                const SizedBox(height: 10),
+                _field(
+                  _confirmPassword,
+                  'Confirmar senha',
+                  key: const ValueKey('signup-confirm-password'),
+                  secret: true,
+                  validator: (value) => value == _password.text
+                      ? null
+                      : 'As senhas n\u00e3o coincidem.',
+                ),
+              ],
+            ],
             if (!_register)
               Row(
                 children: [
@@ -728,61 +1328,175 @@ class _LoginPageState extends State<LoginPage> {
                   child: const Text('Já tenho o token de redefinição'),
                 ),
               ),
-            if (_register)
-              CheckboxListTile(
-                value: _acceptTerms,
-                onChanged: (v) => setState(() => _acceptTerms = v ?? false),
-                dense: true,
-                contentPadding: EdgeInsets.zero,
-                activeColor: accent,
-                title: const Text(
-                  'Aceito os Termos de Uso e a Política de Privacidade',
-                  style: TextStyle(color: softText, fontSize: 10),
+            if (_register && (_userType == 'atleta' || _crefVerified))
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Padding(
+                    padding: EdgeInsets.only(left: 8, top: 4, bottom: 4),
+                    child: Text(
+                      'CONSENTIMENTOS LGPD',
+                      style: TextStyle(
+                        color: softText,
+                        fontSize: 9,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: .5,
+                      ),
+                    ),
+                  ),
+                  CheckboxListTile(
+                    key: const ValueKey('consent-terms'),
+                    value: _acceptTerms,
+                    onChanged: (value) =>
+                        setState(() => _acceptTerms = value ?? false),
+                    activeColor: accent,
+                    controlAffinity: ListTileControlAffinity.leading,
+                    contentPadding: EdgeInsets.zero,
+                    dense: true,
+                    visualDensity: VisualDensity.compact,
+                    title: Wrap(
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        const Text(
+                          'Li e aceito os ',
+                          style: TextStyle(color: softText, fontSize: 10),
+                        ),
+                        const LegalDocumentLink(
+                          buttonKey: ValueKey('legal-link-terms-signup'),
+                          kind: LegalDocumentKind.terms,
+                          label: 'Termos de Uso',
+                          compact: true,
+                        ),
+                      ],
+                    ),
+                  ),
+                  CheckboxListTile(
+                    key: const ValueKey('consent-privacy'),
+                    value: _acceptPrivacy,
+                    onChanged: (value) =>
+                        setState(() => _acceptPrivacy = value ?? false),
+                    activeColor: accent,
+                    controlAffinity: ListTileControlAffinity.leading,
+                    contentPadding: EdgeInsets.zero,
+                    dense: true,
+                    visualDensity: VisualDensity.compact,
+                    title: Wrap(
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        const Text(
+                          'Li e aceito a ',
+                          style: TextStyle(color: softText, fontSize: 10),
+                        ),
+                        const LegalDocumentLink(
+                          buttonKey: ValueKey('legal-link-privacy-signup'),
+                          kind: LegalDocumentKind.privacy,
+                          label: 'Pol\u00edtica de Privacidade',
+                          compact: true,
+                        ),
+                      ],
+                    ),
+                  ),
+                  CheckboxListTile(
+                    key: const ValueKey('consent-data'),
+                    value: _acceptData,
+                    onChanged: (value) =>
+                        setState(() => _acceptData = value ?? false),
+                    activeColor: accent,
+                    controlAffinity: ListTileControlAffinity.leading,
+                    contentPadding: EdgeInsets.zero,
+                    dense: true,
+                    visualDensity: VisualDensity.compact,
+                    title: const Text(
+                      'Autorizo o tratamento dos meus dados pessoais (LGPD)',
+                      style: TextStyle(color: softText, fontSize: 10),
+                    ),
+                  ),
+                ],
+              ),
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 220),
+              transitionBuilder: (child, animation) => FadeTransition(
+                opacity: animation,
+                child: SlideTransition(
+                  position: Tween<Offset>(
+                    begin: const Offset(0, -.12),
+                    end: Offset.zero,
+                  ).animate(animation),
+                  child: child,
                 ),
               ),
-            if (_error.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Text(
-                  _error,
-                  style: TextStyle(
-                    color:
-                        _error.startsWith('Se a conta') ||
-                            _error.startsWith('Cadastro')
-                        ? positive
-                        : Colors.redAccent,
-                    fontSize: 11,
-                  ),
-                ),
-              ),
-            const SizedBox(height: 8),
-            SizedBox(
-              height: 54,
-              child: FilledButton.icon(
-                onPressed: _busy ? null : _submit,
-                icon: _busy
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : Icon(_register ? Icons.person_add_alt_1 : Icons.bolt),
-                label: Text(_register ? 'CRIAR CONTA' : 'ENTRAR NO WEGYM OS'),
-                style: FilledButton.styleFrom(
-                  backgroundColor: accent,
-                  foregroundColor: stitchOnPrimaryContainer,
-                  elevation: 8,
-                  shadowColor: accent.withValues(alpha: .28),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(13),
-                  ),
-                  textStyle: const TextStyle(
-                    fontWeight: FontWeight.w900,
-                    fontStyle: FontStyle.italic,
-                  ),
-                ),
-              ),
+              child: _error.isEmpty
+                  ? const SizedBox.shrink(key: ValueKey('login-error-empty'))
+                  : Padding(
+                      key: ValueKey(_error),
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Text(
+                        _error,
+                        style: TextStyle(
+                          color:
+                              _error.startsWith('Se a conta') ||
+                                  _error.startsWith('Cadastro')
+                              ? positive
+                              : Colors.redAccent,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ),
             ),
+            const SizedBox(height: 8),
+            if (!_register || _userType != 'personal' || _crefVerified)
+              MouseRegion(
+                onEnter: (_) => setState(() => _submitHovered = true),
+                onExit: (_) => setState(() => _submitHovered = false),
+                child: Listener(
+                  onPointerDown: (_) => setState(() => _submitPressed = true),
+                  onPointerUp: (_) => setState(() => _submitPressed = false),
+                  onPointerCancel: (_) =>
+                      setState(() => _submitPressed = false),
+                  child: AnimatedScale(
+                    scale: _submitPressed
+                        ? .99
+                        : _submitHovered
+                        ? 1.01
+                        : 1,
+                    duration: const Duration(milliseconds: 130),
+                    curve: Curves.easeOut,
+                    child: SizedBox(
+                      height: 54,
+                      child: FilledButton.icon(
+                        onPressed: _busy ? null : _submit,
+                        icon: _busy
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : Icon(
+                                _register ? Icons.person_add_alt_1 : Icons.bolt,
+                              ),
+                        label: Text(
+                          _register ? 'CRIAR CONTA' : 'ENTRAR NO WEGYM OS',
+                        ),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: accent,
+                          foregroundColor: stitchOnPrimaryContainer,
+                          elevation: 8,
+                          shadowColor: accent.withValues(alpha: .28),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(13),
+                          ),
+                          textStyle: const TextStyle(
+                            fontWeight: FontWeight.w900,
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             if (!_register) ...[
               const SizedBox(height: 10),
               OutlinedButton(
@@ -880,12 +1594,11 @@ class _LoginPageState extends State<LoginPage> {
               ),
             ],
             const Divider(color: Colors.white12),
-            if (!_register &&
-                const bool.fromEnvironment('PREVIEW_DASHBOARD')) ...[
+            if (!_register && Api.isDemoSession) ...[
               const Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
-                  'ACESSOS PARA DEMONSTRAÇÃO',
+                  'ACESSOS PARA DEMONSTRA\u00C7\u00C3O',
                   style: TextStyle(
                     color: accent,
                     fontSize: 10,
@@ -920,16 +1633,35 @@ class _LoginPageState extends State<LoginPage> {
               ),
             ],
             const SizedBox(height: 8),
-            const Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'E2E • LGPD',
-                  style: TextStyle(color: softText, fontSize: 9),
+            Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              runSpacing: 2,
+              children: const [
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+                  child: Text(
+                    'E2E \u00b7 LGPD',
+                    style: TextStyle(color: softText, fontSize: 9),
+                  ),
                 ),
-                Text(
-                  'TERMOS  •  PRIVACIDADE',
-                  style: TextStyle(color: softText, fontSize: 9),
+                Wrap(
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    LegalDocumentLink(
+                      buttonKey: ValueKey('legal-link-terms-login'),
+                      kind: LegalDocumentKind.terms,
+                      label: 'TERMOS',
+                      compact: true,
+                    ),
+                    Text('?', style: TextStyle(color: softText, fontSize: 9)),
+                    LegalDocumentLink(
+                      buttonKey: ValueKey('legal-link-privacy-login'),
+                      kind: LegalDocumentKind.privacy,
+                      label: 'PRIVACIDADE',
+                      compact: true,
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -953,6 +1685,18 @@ class _LoginPageState extends State<LoginPage> {
     onPressed: onTap,
     backgroundColor: stitchSidebar,
     side: const BorderSide(color: Colors.white12),
+  );
+
+  Widget _ambientOrb(Alignment alignment, Color color, double size) => Align(
+    alignment: alignment,
+    child: Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        boxShadow: [BoxShadow(color: color, blurRadius: 110, spreadRadius: 38)],
+      ),
+    ),
   );
 
   Widget _loginStatusBadge() => Container(
@@ -980,198 +1724,377 @@ class _LoginPageState extends State<LoginPage> {
     ),
   );
 
-  Widget _storyPanel() => Container(
-    decoration: BoxDecoration(
-      borderRadius: BorderRadius.circular(22),
-      gradient: const LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: [Color(0xFF252326), Color(0xFF151518), Color(0xFF121A19)],
+  Widget _introItem(
+    Widget child, {
+    double begin = 0,
+    double end = 0.72,
+    double distance = 20,
+  }) => AnimatedBuilder(
+    animation: _introMotion,
+    child: child,
+    builder: (context, child) {
+      final progress = Interval(
+        begin,
+        end,
+        curve: Curves.easeOutCubic,
+      ).transform(_introMotion.value);
+      return Opacity(
+        opacity: progress,
+        child: Transform.translate(
+          offset: Offset(0, (1 - progress) * distance),
+          child: child,
+        ),
+      );
+    },
+  );
+
+  Widget _animatedBrand() => _introItem(
+    AnimatedBuilder(
+      animation: _ambientMotion,
+      builder: (context, child) {
+        final reducedMotion = MediaQuery.of(context).disableAnimations;
+        final phase = reducedMotion ? 0.0 : _ambientMotion.value * math.pi * 2;
+        return Transform.translate(
+          offset: Offset(0, math.sin(phase) * 1.5),
+          child: Transform.rotate(angle: math.sin(phase) * .035, child: child),
+        );
+      },
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: accent,
+              borderRadius: BorderRadius.circular(10),
+              boxShadow: [
+                BoxShadow(
+                  color: accent.withValues(alpha: .28),
+                  blurRadius: 16,
+                  offset: const Offset(0, 5),
+                ),
+              ],
+            ),
+            child: const Icon(
+              Icons.fitness_center,
+              color: Colors.white,
+              size: 23,
+            ),
+          ),
+          const SizedBox(width: 10),
+          const Text(
+            'WEGYM',
+            style: TextStyle(
+              color: lightText,
+              fontSize: 22,
+              fontWeight: FontWeight.w900,
+              fontStyle: FontStyle.italic,
+              letterSpacing: -1,
+            ),
+          ),
+        ],
       ),
     ),
-    padding: const EdgeInsets.fromLTRB(34, 30, 34, 26),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Brand(),
-        const SizedBox(height: 38),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
-          decoration: BoxDecoration(
-            color: positive.withValues(alpha: .09),
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: positive.withValues(alpha: .22)),
-          ),
-          child: const Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.circle, color: positive, size: 8),
-              SizedBox(width: 8),
-              Text(
-                'ECOSSISTEMA ONLINE  •  RTT 18MS',
-                style: TextStyle(
-                  color: positive,
-                  fontSize: 9,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: .7,
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 28),
-        const Text(
-          'MOTOR DE ALTA PERFORMANCE',
-          style: TextStyle(
-            color: accent,
-            fontSize: 9,
-            fontWeight: FontWeight.w900,
-            letterSpacing: .8,
-          ),
-        ),
-        const SizedBox(height: 9),
-        const Text.rich(
-          TextSpan(
-            children: [
-              TextSpan(text: 'A TECNOLOGIA QUE\nTRANSFORMA SUOR\nEM DADOS '),
-              TextSpan(
-                text: 'MILIMÉTRICOS.',
-                style: TextStyle(color: accent),
-              ),
-            ],
-          ),
-          style: TextStyle(
-            color: lightText,
-            fontSize: 30,
-            height: 1.02,
-            fontWeight: FontWeight.w900,
-            fontStyle: FontStyle.italic,
-            letterSpacing: -1.2,
-          ),
-        ),
-        const SizedBox(height: 16),
-        const Text(
-          'Algoritmos de periodização, telemetria muscular e sincronização em tempo real para atletas e treinadores.',
-          style: TextStyle(color: softText, fontSize: 13, height: 1.6),
-        ),
-        const SizedBox(height: 26),
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: .24),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white.withValues(alpha: .07)),
-          ),
-          child: const Row(
-            children: [
-              CircleAvatar(
-                radius: 23,
-                backgroundColor: Color(0x29F66018),
-                child: Icon(Icons.fitness_center, color: accent, size: 21),
-              ),
-              SizedBox(width: 13),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '142 atletas ativos',
-                      style: TextStyle(
-                        color: lightText,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    SizedBox(height: 4),
-                    Text(
-                      'Evolução acompanhada em tempo real',
-                      style: TextStyle(color: softText, fontSize: 10),
-                    ),
-                  ],
-                ),
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    '+14,2%',
-                    style: TextStyle(
-                      color: positive,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                  SizedBox(height: 4),
-                  Icon(Icons.show_chart, color: positive, size: 22),
-                ],
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 14),
-        Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: .045),
-            borderRadius: BorderRadius.circular(15),
-            border: Border.all(color: Colors.white.withValues(alpha: .045)),
-          ),
-          child: const Row(
-            children: [
-              CircleAvatar(
-                radius: 20,
-                backgroundColor: Color(0xFF101013),
-                child: Icon(Icons.person, color: stitchPeach, size: 19),
-              ),
-              SizedBox(width: 11),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '"Cada treino vira evolu\u00e7\u00e3o."',
-                      style: TextStyle(
-                        color: lightText,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w800,
-                        fontStyle: FontStyle.italic,
-                      ),
-                    ),
-                    SizedBox(height: 5),
-                    Text(
-                      'MARCOS VIANNA  •  HEAD COACH',
-                      style: TextStyle(
-                        color: accent,
-                        fontSize: 8,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: .3,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-        const Spacer(),
-        const Divider(color: Colors.white12),
-        const SizedBox(height: 10),
-        const Row(
+    begin: 0,
+    end: .6,
+    distance: 20,
+  );
+
+  Widget _dumbbellIllustration() => SizedBox(
+    width: 220,
+    height: 132,
+    child: AnimatedBuilder(
+      animation: _ambientMotion,
+      builder: (context, child) {
+        final phase = _ambientMotion.value * math.pi * 2;
+        final reducedMotion = MediaQuery.of(context).disableAnimations;
+        final float = reducedMotion ? 0.0 : math.sin(phase * 2.4) * 9;
+        final rotation = reducedMotion ? 0.0 : phase;
+        return Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.shield_outlined, color: positive, size: 15),
-            SizedBox(width: 8),
-            Text(
-              'ACESSO SEGURO  •  PRIVACIDADE PROTEGIDA',
-              style: TextStyle(
-                color: softText,
-                fontSize: 8,
-                fontWeight: FontWeight.w800,
-                letterSpacing: .5,
+            Transform.translate(
+              offset: Offset(0, float),
+              child: Transform(
+                alignment: Alignment.center,
+                transform: Matrix4.identity()
+                  ..setEntry(3, 2, .001)
+                  ..rotateX(.28)
+                  ..rotateY(rotation),
+                child: child,
+              ),
+            ),
+            const SizedBox(height: 9),
+            Transform.scale(
+              scaleX: 1 - (float.abs() / 120),
+              child: Container(
+                width: 110,
+                height: 7,
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: .52),
+                  borderRadius: BorderRadius.circular(99),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: .45),
+                      blurRadius: 12,
+                      spreadRadius: 4,
+                    ),
+                  ],
+                ),
               ),
             ),
           ],
+        );
+      },
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _dumbbellWeights(),
+          Container(
+            width: 38,
+            height: 10,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [
+                  Color(0xFF6D7078),
+                  Color(0xFF25262B),
+                  Color(0xFF777A82),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+          _dumbbellWeights(),
+        ],
+      ),
+    ),
+  );
+
+  Widget _dumbbellWeights() => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: List.generate(
+      3,
+      (index) => Container(
+        width: 9,
+        height: 40 - index * 4,
+        margin: const EdgeInsets.symmetric(horizontal: 1),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFFFF8A27), Color(0xFFF45B0A), Color(0xFF9D3105)],
+          ),
+          borderRadius: BorderRadius.circular(5),
+          border: Border.all(
+            color: const Color(0xFFFFA04F).withValues(alpha: .7),
+          ),
+          boxShadow: [
+            BoxShadow(color: accent.withValues(alpha: .32), blurRadius: 12),
+          ],
         ),
-      ],
+      ),
+    ),
+  );
+
+  Widget _storyPanel() => ClipRRect(
+    borderRadius: BorderRadius.circular(22),
+    child: CustomPaint(
+      painter: _LoginDotPattern(),
+      child: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF252326), Color(0xFF151518), Color(0xFF121A19)],
+          ),
+        ),
+        padding: const EdgeInsets.fromLTRB(34, 30, 34, 26),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _animatedBrand(),
+            const SizedBox(height: 38),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+              decoration: BoxDecoration(
+                color: positive.withValues(alpha: .09),
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: positive.withValues(alpha: .22)),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.circle, color: positive, size: 8),
+                  SizedBox(width: 8),
+                  Text(
+                    'ECOSSISTEMA ONLINE  •  RTT 18MS',
+                    style: TextStyle(
+                      color: positive,
+                      fontSize: 9,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: .7,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 28),
+            const Text(
+              'MOTOR DE ALTA PERFORMANCE',
+              style: TextStyle(
+                color: accent,
+                fontSize: 9,
+                fontWeight: FontWeight.w900,
+                letterSpacing: .8,
+              ),
+            ),
+            const SizedBox(height: 9),
+            const Text.rich(
+              TextSpan(
+                children: [
+                  TextSpan(text: 'SUPERE\nSEUS\n'),
+                  TextSpan(
+                    text: 'LIMITES',
+                    style: TextStyle(color: accent),
+                  ),
+                  TextSpan(text: '.'),
+                ],
+              ),
+              style: TextStyle(
+                color: lightText,
+                fontSize: 42,
+                height: .98,
+                fontWeight: FontWeight.w900,
+                fontStyle: FontStyle.italic,
+                letterSpacing: -1.2,
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Sua jornada para a melhor vers\u00e3o de si mesmo come\u00e7a aqui.',
+              style: TextStyle(color: softText, fontSize: 13, height: 1.6),
+            ),
+            const SizedBox(height: 26),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: .24),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.white.withValues(alpha: .07)),
+              ),
+              child: const Row(
+                children: [
+                  CircleAvatar(
+                    radius: 23,
+                    backgroundColor: Color(0x29F66018),
+                    child: Icon(Icons.fitness_center, color: accent, size: 21),
+                  ),
+                  SizedBox(width: 13),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '142 atletas ativos',
+                          style: TextStyle(
+                            color: lightText,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          'Evolução acompanhada em tempo real',
+                          style: TextStyle(color: softText, fontSize: 10),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        '+14,2%',
+                        style: TextStyle(
+                          color: positive,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      SizedBox(height: 4),
+                      Icon(Icons.show_chart, color: positive, size: 22),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: .045),
+                borderRadius: BorderRadius.circular(15),
+                border: Border.all(color: Colors.white.withValues(alpha: .045)),
+              ),
+              child: const Row(
+                children: [
+                  CircleAvatar(
+                    radius: 20,
+                    backgroundColor: Color(0xFF101013),
+                    child: Icon(Icons.person, color: stitchPeach, size: 19),
+                  ),
+                  SizedBox(width: 11),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '"Cada treino vira evolu\u00e7\u00e3o."',
+                          style: TextStyle(
+                            color: lightText,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                        SizedBox(height: 5),
+                        Text(
+                          'MARCOS VIANNA  •  HEAD COACH',
+                          style: TextStyle(
+                            color: accent,
+                            fontSize: 8,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: .3,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+            _dumbbellIllustration(),
+            const Spacer(),
+            const Divider(color: Colors.white12),
+            const SizedBox(height: 10),
+            const Row(
+              children: [
+                Icon(Icons.shield_outlined, color: positive, size: 15),
+                SizedBox(width: 8),
+                Text(
+                  'ACESSO SEGURO  •  PRIVACIDADE PROTEGIDA',
+                  style: TextStyle(
+                    color: softText,
+                    fontSize: 8,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: .5,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     ),
   );
 
@@ -1181,123 +2104,264 @@ class _LoginPageState extends State<LoginPage> {
       child: LayoutBuilder(
         builder: (context, constraints) {
           final wide = constraints.maxWidth > 850;
-          return Stack(
-            children: [
-              Positioned(
-                top: -180,
-                right: -130,
-                child: Container(
-                  width: 420,
-                  height: 420,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: accent.withValues(alpha: .045),
-                  ),
-                ),
-              ),
-              Positioned(
-                bottom: -220,
-                left: -170,
-                child: Container(
-                  width: 460,
-                  height: 460,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: positive.withValues(alpha: .035),
-                  ),
-                ),
-              ),
-              SingleChildScrollView(
-                controller: _pageScroll,
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 1260),
-                    child: Padding(
-                      padding: EdgeInsets.all(wide ? 28 : 14),
-                      child: Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: const Color(0xCC17171A),
-                          borderRadius: BorderRadius.circular(28),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: .08),
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: .38),
-                              blurRadius: 50,
-                              offset: const Offset(0, 24),
+          return MouseRegion(
+            onHover: (event) {
+              final size = Size(constraints.maxWidth, constraints.maxHeight);
+              _parallaxPointer.value = Offset(
+                ((event.position.dx / size.width) - .5) * 2,
+                ((event.position.dy / size.height) - .5) * 2,
+              );
+            },
+            onExit: (_) => _parallaxPointer.value = Offset.zero,
+            child: Stack(
+              children: [
+                AnimatedBuilder(
+                  animation: Listenable.merge([
+                    _ambientMotion,
+                    _parallaxPointer,
+                  ]),
+                  builder: (context, child) {
+                    final phase = _ambientMotion.value * math.pi * 2;
+                    final reducedMotion = MediaQuery.of(
+                      context,
+                    ).disableAnimations;
+                    final pointer = reducedMotion
+                        ? Offset.zero
+                        : _parallaxPointer.value;
+                    final drift = reducedMotion ? 0.0 : math.sin(phase) * .06;
+                    return Positioned.fill(
+                      child: IgnorePointer(
+                        child: Stack(
+                          children: [
+                            _ambientOrb(
+                              Alignment(
+                                .88 + drift + pointer.dx * .12,
+                                -.82 - drift + pointer.dy * .12,
+                              ),
+                              const Color(0xFFEA580C).withValues(alpha: .19),
+                              250,
+                            ),
+                            _ambientOrb(
+                              Alignment(
+                                -.92 - drift - pointer.dx * .1,
+                                .86 + drift + pointer.dy * .1,
+                              ),
+                              const Color(0xFF16A34A).withValues(alpha: .07),
+                              310,
+                            ),
+                            _ambientOrb(
+                              Alignment(
+                                .4 - drift + pointer.dx * .08,
+                                .7 - drift - pointer.dy * .08,
+                              ),
+                              const Color(0xFF2563EB).withValues(alpha: .045),
+                              210,
                             ),
                           ],
                         ),
-                        child: wide
-                            ? IntrinsicHeight(
-                                child: Row(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.stretch,
-                                  children: [
-                                    Expanded(flex: 5, child: _storyPanel()),
-                                    const SizedBox(width: 10),
-                                    Expanded(flex: 7, child: _loginForm()),
-                                  ],
+                      ),
+                    );
+                  },
+                ),
+                SingleChildScrollView(
+                  controller: _pageScroll,
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      minHeight: constraints.maxHeight,
+                    ),
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 1260),
+                        child: Padding(
+                          padding: EdgeInsets.all(wide ? 28 : 14),
+                          child: Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: const Color(0xCC17171A),
+                              borderRadius: BorderRadius.circular(28),
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: .08),
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: .38),
+                                  blurRadius: 50,
+                                  offset: const Offset(0, 24),
                                 ),
-                              )
-                            : Column(
-                                children: [
-                                  Padding(
-                                    padding: const EdgeInsets.fromLTRB(
-                                      12,
-                                      10,
-                                      12,
-                                      18,
-                                    ),
+                              ],
+                            ),
+                            child: wide
+                                ? IntrinsicHeight(
                                     child: Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.stretch,
                                       children: [
-                                        const Brand(),
-                                        const Spacer(),
-                                        if (!_register) _loginStatusBadge(),
+                                        Expanded(flex: 4, child: _storyPanel()),
+                                        const SizedBox(width: 10),
+                                        Expanded(flex: 8, child: _loginForm()),
                                       ],
                                     ),
+                                  )
+                                : Column(
+                                    children: [
+                                      Padding(
+                                        padding: const EdgeInsets.fromLTRB(
+                                          12,
+                                          10,
+                                          12,
+                                          18,
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            const Brand(),
+                                            const Spacer(),
+                                            if (!_register) _loginStatusBadge(),
+                                          ],
+                                        ),
+                                      ),
+                                      _loginForm(),
+                                    ],
                                   ),
-                                  _loginForm(),
-                                ],
-                              ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              if (_register)
-                Positioned(
-                  top: 6,
-                  right: 6,
-                  child: Material(
-                    color: const Color(0xFF242428),
-                    borderRadius: BorderRadius.circular(12),
-                    child: TextButton.icon(
-                      onPressed: _busy ? null : () => _setRegisterMode(false),
-                      icon: const Icon(Icons.arrow_back, size: 16),
-                      label: const Text('VOLTAR AO LOGIN'),
-                      style: TextButton.styleFrom(
-                        foregroundColor: lightText,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 9,
-                        ),
-                        textStyle: const TextStyle(
-                          fontSize: 9,
-                          fontWeight: FontWeight.w900,
+                          ),
                         ),
                       ),
                     ),
                   ),
                 ),
-            ],
+                if (_register)
+                  Positioned(
+                    top: 6,
+                    right: 6,
+                    child: Material(
+                      color: const Color(0xFF242428),
+                      borderRadius: BorderRadius.circular(12),
+                      child: TextButton.icon(
+                        onPressed: _busy ? null : () => _setRegisterMode(false),
+                        icon: const Icon(Icons.arrow_back, size: 16),
+                        label: const Text('VOLTAR AO LOGIN'),
+                        style: TextButton.styleFrom(
+                          foregroundColor: lightText,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 9,
+                          ),
+                          textStyle: const TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           );
         },
       ),
     ),
   );
+}
+
+class _LoginTilt extends StatefulWidget {
+  const _LoginTilt({required this.child, required this.enabled});
+
+  final Widget child;
+  final bool enabled;
+
+  @override
+  State<_LoginTilt> createState() => _LoginTiltState();
+}
+
+class _LoginTiltState extends State<_LoginTilt> {
+  Offset _tilt = Offset.zero;
+  Alignment _glare = Alignment.center;
+
+  void _onHover(PointerEvent event) {
+    if (!widget.enabled) return;
+    final box = context.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize) return;
+    final local = box.globalToLocal(event.position);
+    final x = (local.dx / box.size.width).clamp(0.0, 1.0);
+    final y = (local.dy / box.size.height).clamp(0.0, 1.0);
+    setState(() {
+      _tilt = Offset(x - .5, y - .5);
+      _glare = Alignment(x * 2 - 1, y * 2 - 1);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => MouseRegion(
+    onHover: widget.enabled ? _onHover : null,
+    onExit: widget.enabled
+        ? (_) => setState(() {
+            _tilt = Offset.zero;
+            _glare = Alignment.center;
+          })
+        : null,
+    child: TweenAnimationBuilder<Offset>(
+      tween: Tween<Offset>(end: _tilt),
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOutCubic,
+      builder: (context, tilt, child) {
+        final matrix = Matrix4.identity()
+          ..setEntry(3, 2, 1 / 900)
+          ..rotateX(-tilt.dy * 8 * math.pi / 180)
+          ..rotateY(tilt.dx * 8 * math.pi / 180)
+          ..scaleByDouble(
+            widget.enabled && tilt != Offset.zero ? 1.006 : 1.0,
+            widget.enabled && tilt != Offset.zero ? 1.006 : 1.0,
+            1,
+            1,
+          );
+        return Transform(
+          alignment: Alignment.center,
+          transform: matrix,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(28),
+            child: Stack(
+              children: [
+                child!,
+                if (widget.enabled)
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 100),
+                        decoration: BoxDecoration(
+                          gradient: RadialGradient(
+                            center: _glare,
+                            radius: .9,
+                            colors: [
+                              Colors.white.withValues(alpha: .09),
+                              Colors.white.withValues(alpha: 0),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+      child: widget.child,
+    ),
+  );
+}
+
+class _LoginDotPattern extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..color = Colors.white.withValues(alpha: .045);
+    for (var y = 12.0; y < size.height; y += 24) {
+      for (var x = 12.0; x < size.width; x += 24) {
+        canvas.drawCircle(Offset(x, y), 1, paint);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 class AppShell extends StatefulWidget {
@@ -1314,7 +2378,13 @@ class _AppShellState extends State<AppShell> {
   int _revision = 0;
   int _sessionRevision = 0;
   String? _role;
+  int _offlinePendingCount = 0;
+  bool _syncingPendingWorkouts = false;
+  bool _handlingPaymentReturn = false;
+  late final AppLifecycleListener _appLifecycleListener;
   WorkoutSessionController? _sessionController;
+  String _dashboardGpsActivity = 'Corrida';
+  String _dashboardModality = 'aerobic';
   final _globalSearch = TextEditingController();
   late Future<List<dynamic>> _data = _load();
 
@@ -1322,7 +2392,59 @@ class _AppShellState extends State<AppShell> {
   void initState() {
     super.initState();
     _role = widget.demoRole;
+    _appLifecycleListener = AppLifecycleListener(
+      onResume: () => unawaited(_refreshOfflineWorkouts(sync: true)),
+    );
     _restoreNavigation();
+    paymentReturnLink.addListener(_handlePaymentReturn);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _handlePaymentReturn());
+    unawaited(_refreshOfflineWorkouts(sync: true));
+  }
+
+  void _handlePaymentReturn() {
+    if (_handlingPaymentReturn || !mounted) return;
+    final uri = paymentReturnLink.value;
+    if (uri == null || !isPaymentReturnUri(uri)) return;
+    _handlingPaymentReturn = true;
+    paymentReturnLink.value = null;
+    final result =
+        uri.queryParameters['payment_return'] ??
+        uri.queryParameters['status'] ??
+        uri.queryParameters['collection_status'];
+    unawaited(_verifyPaymentReturn(result));
+  }
+
+  Future<void> _verifyPaymentReturn(String? result) async {
+    var notice = 'Retorno do pagamento recebido. Verifique sua assinatura.';
+    try {
+      final response = Map<String, dynamic>.from(
+        await Api.get('/api/subscriptions/me') as Map,
+      );
+      final subscription = response['data'];
+      if (subscription is Map && subscription['status'] == 'active') {
+        notice =
+            'Pagamento confirmado. Sua assinatura WeGYM PRO est\u00e1 ativa.';
+      } else if (result == 'success' || result == 'approved') {
+        notice =
+            'Pagamento aprovado no checkout. A confirma\u00e7\u00e3o da assinatura est\u00e1 aguardando o webhook.';
+      } else if (result == 'pending' || result == 'in_process') {
+        notice =
+            'Pagamento pendente. A assinatura ser\u00e1 ativada ap\u00f3s a confirma\u00e7\u00e3o.';
+      } else if (result == 'failure' || result == 'rejected') {
+        notice =
+            'O pagamento n\u00e3o foi aprovado. Voc\u00ea pode tentar novamente em Planos PRO.';
+      }
+    } catch (_) {
+      notice =
+          'N\u00e3o foi poss\u00edvel verificar o pagamento agora. Consulte Planos PRO novamente.';
+    } finally {
+      _handlingPaymentReturn = false;
+    }
+    if (mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(notice)));
+    }
   }
 
   Future<void> _restoreNavigation() async {
@@ -1357,11 +2479,32 @@ class _AppShellState extends State<AppShell> {
         15,
         16,
         17,
+        18,
+        19,
+        21,
       };
       if (index == null || !validPages.contains(index)) return;
       if (index == 7 && _role != 'personal') return;
+      if (index == 18 && _role == 'personal') return;
       setState(() {
         _index = index;
+        final restoredModality = saved['modality']?.toString();
+        if (restoredModality != null &&
+            trainingModalities.containsKey(restoredModality) &&
+            !gpsModalityActivities.containsKey(restoredModality) &&
+            restoredModality != 'gym') {
+          _dashboardModality = restoredModality;
+        }
+        final restoredGpsActivity = saved['gpsActivity']?.toString();
+        if (restoredGpsActivity != null &&
+            const {
+              'Corrida',
+              'Ciclismo',
+              'Caminhada',
+              'Trilha',
+            }.contains(restoredGpsActivity)) {
+          _dashboardGpsActivity = restoredGpsActivity;
+        }
         _navigationHistory
           ..clear()
           ..addAll(history.where((page) => validPages.contains(page)));
@@ -1371,7 +2514,7 @@ class _AppShellState extends State<AppShell> {
         }
       });
     } catch (_) {
-      // Se o estado local estiver indisponível, o app permanece na tela inicial.
+      // Se o estado local estiver indisponÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­vel, o app permanece na tela inicial.
     }
   }
 
@@ -1380,12 +2523,109 @@ class _AppShellState extends State<AppShell> {
       Api.saveNavigationState(
         _index,
         List<int>.of(_navigationHistory),
+        modality: _dashboardModality,
+        gpsActivity: _dashboardGpsActivity,
       ).catchError((_) {}),
     );
   }
 
+  Future<void> _refreshOfflineWorkouts({bool sync = false}) async {
+    if (Api.isDemoSession) return;
+    if (sync) {
+      if (_syncingPendingWorkouts) return;
+      if (mounted) setState(() => _syncingPendingWorkouts = true);
+    }
+    try {
+      try {
+        await _data;
+      } catch (_) {
+        // Keep the screen usable with cached device data.
+      }
+      if (sync && Api.currentUserId == null) {
+        try {
+          await Api.profile();
+        } catch (_) {
+          // Without an authenticated profile, keep the queue on this device.
+        }
+      }
+      if (sync && Api.currentUserId != null) {
+        final result = await Api.syncPendingWorkouts();
+        if (result.synced > 0 && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                result.synced == 1
+                    ? '1 treino sincronizado com o servidor.'
+                    : '${result.synced} treinos sincronizados com o servidor.',
+              ),
+            ),
+          );
+        }
+      }
+      final ownerId = Api.currentUserId;
+      final count = ownerId == null
+          ? 0
+          : await Api.pendingWorkoutCount(userId: ownerId);
+      if (!mounted) return;
+      setState(() {
+        _offlinePendingCount = count;
+        _syncingPendingWorkouts = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _syncingPendingWorkouts = false);
+    }
+  }
+
+  Widget _offlineStatusBanner() => Container(
+    margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+    decoration: BoxDecoration(
+      color: stitchOrange.withValues(alpha: .10),
+      borderRadius: BorderRadius.circular(10),
+      border: Border.all(color: stitchOrange.withValues(alpha: .24)),
+    ),
+    child: Row(
+      children: [
+        Icon(
+          _offlinePendingCount > 0
+              ? Icons.cloud_upload_outlined
+              : Icons.wifi_off,
+          color: stitchOrange,
+          size: 17,
+        ),
+        const SizedBox(width: 9),
+        Expanded(
+          child: Text(
+            _offlinePendingCount > 0
+                ? '$_offlinePendingCount treino(s) aguardando sincroniza\u00e7\u00e3o.'
+                : 'Sem conex\u00e3o. Os dados salvos neste dispositivo continuam dispon\u00edveis.',
+            style: const TextStyle(color: stitchPeach, fontSize: 12),
+          ),
+        ),
+        if (_offlinePendingCount > 0)
+          TextButton.icon(
+            onPressed: _syncingPendingWorkouts
+                ? null
+                : () => _refreshOfflineWorkouts(sync: true),
+            icon: _syncingPendingWorkouts
+                ? const SizedBox(
+                    width: 15,
+                    height: 15,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.sync, size: 17),
+            label: const Text('SINCRONIZAR'),
+          ),
+      ],
+    ),
+  );
   Map<int, String> get _visibleModules => Map.fromEntries(
-    appModules.entries.where((entry) => entry.key != 7 || _role == 'personal'),
+    appModules.entries.where(
+      (entry) =>
+          (entry.key != 7 || _role == 'personal') &&
+          (entry.key != 18 || _role != 'personal'),
+    ),
   );
 
   void _setRole(dynamic role) {
@@ -1396,7 +2636,7 @@ class _AppShellState extends State<AppShell> {
   }
 
   Future<List<dynamic>> _load() async {
-    if (const bool.fromEnvironment('PREVIEW_DASHBOARD')) {
+    if (Api.isDemoSession) {
       final demoRole = widget.demoRole ?? 'atleta';
       _role = demoRole;
       final now = DateTime.now();
@@ -1430,13 +2670,14 @@ class _AppShellState extends State<AppShell> {
           else
             'athlete': {
               'id': 'preview-athlete',
-              'name': 'João Silva',
+              'name': 'Jo\u00E3o Silva',
               'experienceLevel': 'intermediate',
             },
         },
         {
           'totalSessions': 4,
           'totalVolume': 14280,
+          'totalLiftedVolumeKg': 38450,
           'totalCalories': 2140,
           'totalDistance': 8.4,
           'avgHeartRate': 142,
@@ -1496,12 +2737,26 @@ class _AppShellState extends State<AppShell> {
             },
           ],
         },
+        [
+          {
+            'id': 'preview-goal',
+            'title': 'Treinar 16 vezes no mês',
+            'category': 'workout',
+            'metric': 'sessions',
+            'targetValue': 16,
+            'currentValue': 12,
+            'status': 'active',
+          },
+        ],
       ];
     }
     final profile = await Api.profile();
     _setRole(profile['role']);
     if (profile['role'] == 'personal') {
       final feed = Api.feed().catchError((_) => <String, dynamic>{'posts': []});
+      final goals = Api.get(
+        '/api/goals?status=active',
+      ).catchError((_) => <dynamic>[]);
       return [
         profile,
         <String, dynamic>{},
@@ -1509,6 +2764,7 @@ class _AppShellState extends State<AppShell> {
         <Map<String, dynamic>>[],
         <Map<String, dynamic>>[],
         await feed,
+        await goals,
       ];
     }
     final athlete = profile['athlete'];
@@ -1519,12 +2775,16 @@ class _AppShellState extends State<AppShell> {
             athleteId,
           ).catchError((_) => <Map<String, dynamic>>[]);
     final feed = Api.feed().catchError((_) => <String, dynamic>{'posts': []});
+    final goals = Api.get(
+      '/api/goals?status=active',
+    ).catchError((_) => <dynamic>[]);
     final values = await Future.wait<dynamic>([
       Api.stats('week'),
       Api.stats('month'),
       Api.sessions(),
       plans,
       feed,
+      goals,
     ]);
     return [profile, ...values];
   }
@@ -1538,6 +2798,41 @@ class _AppShellState extends State<AppShell> {
 
   void _startWorkout() {
     _startWorkoutWithExercises(null);
+  }
+
+  void _startDashboardModality(String modality) {
+    switch (modality) {
+      case 'gym':
+        _startWorkout();
+        return;
+      case 'running':
+        _dashboardGpsActivity = 'Corrida';
+        _navigateTo(18);
+        return;
+      case 'cycling':
+        _dashboardGpsActivity = 'Ciclismo';
+        _navigateTo(18);
+        return;
+      case 'walking':
+        _dashboardGpsActivity = 'Caminhada';
+        _navigateTo(18);
+        return;
+      case 'hiking':
+        _dashboardGpsActivity = 'Trilha';
+        _navigateTo(18);
+        return;
+      default:
+        if (!trainingModalities.containsKey(modality)) {
+          _openWorkoutBuilder();
+          return;
+        }
+        _dashboardModality = modality;
+        setState(() {
+          _navigationHistory.add(_index);
+          _index = 21;
+        });
+        _saveNavigationState();
+    }
   }
 
   void _startWorkoutWithExercises(List<Map<String, dynamic>>? exercises) {
@@ -1565,6 +2860,7 @@ class _AppShellState extends State<AppShell> {
           : 0;
     });
     _saveNavigationState();
+    unawaited(_refreshOfflineWorkouts());
   }
 
   void _goBack() {
@@ -1578,6 +2874,14 @@ class _AppShellState extends State<AppShell> {
   }
 
   void _navigateTo(int index) {
+    if (index == 18 && _role == 'personal') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('A atividade GPS está disponível para atletas.'),
+        ),
+      );
+      return;
+    }
     if (index == 7 && _role != 'personal') {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -1669,6 +2973,7 @@ class _AppShellState extends State<AppShell> {
         data: _data,
         onReload: _reload,
         onStart: _startWorkout,
+        onStartModality: _startDashboardModality,
         onNavigate: _navigateTo,
         desktop: desktop,
         personalAccount: _role == 'personal',
@@ -1711,6 +3016,8 @@ class _AppShellState extends State<AppShell> {
 
   @override
   void dispose() {
+    paymentReturnLink.removeListener(_handlePaymentReturn);
+    _appLifecycleListener.dispose();
     _globalSearch.dispose();
     _sessionController?.dispose();
     super.dispose();
@@ -1728,9 +3035,16 @@ class _AppShellState extends State<AppShell> {
               onPressed: _goBack,
               icon: const Icon(Icons.arrow_back, color: stitchPeach),
             ),
-          if (!wide)
-            const Brand()
-          else
+          if (!wide) ...[
+            const Brand(),
+            Builder(
+              builder: (drawerContext) => IconButton(
+                tooltip: 'Menu de navegação',
+                onPressed: () => Scaffold.of(drawerContext).openDrawer(),
+                icon: const Icon(Icons.menu, color: softText),
+              ),
+            ),
+          ] else
             Expanded(
               flex: 5,
               child: Container(
@@ -1745,7 +3059,7 @@ class _AppShellState extends State<AppShell> {
                   onSubmitted: _submitGlobalSearch,
                   style: const TextStyle(color: lightText, fontSize: 12),
                   decoration: const InputDecoration(
-                    hintText: 'Buscar uma área do WeGYM...',
+                    hintText: 'Buscar uma \u00E1rea do WeGYM...',
                     hintStyle: TextStyle(color: softText, fontSize: 11),
                     prefixIcon: Icon(Icons.search, color: softText, size: 18),
                     border: InputBorder.none,
@@ -1755,7 +3069,7 @@ class _AppShellState extends State<AppShell> {
                 ),
               ),
             ),
-          if (wide) const Spacer(),
+          const Spacer(),
           FutureBuilder<List<dynamic>>(
             future: _data,
             builder: (context, snapshot) {
@@ -1777,6 +3091,14 @@ class _AppShellState extends State<AppShell> {
                           profile['email'] ??
                           'WeGYM')
                       .toString();
+              final location =
+                  [
+                        athlete['city']?.toString().trim(),
+                        athlete['state']?.toString().trim().toUpperCase(),
+                      ]
+                      .whereType<String>()
+                      .where((part) => part.isNotEmpty)
+                      .join(' • ');
               return Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -1787,9 +3109,11 @@ class _AppShellState extends State<AppShell> {
                       size: 16,
                     ),
                     const SizedBox(width: 4),
-                    const Text(
-                      'WeGYM Club • Jardins',
-                      style: TextStyle(color: lightText, fontSize: 11),
+                    Text(
+                      location.isEmpty
+                          ? 'Localização não informada'
+                          : 'WeGYM Club • $location',
+                      style: const TextStyle(color: lightText, fontSize: 11),
                     ),
                     const SizedBox(width: 14),
                     Text(
@@ -1804,7 +3128,13 @@ class _AppShellState extends State<AppShell> {
                   ],
                   PopupMenuButton<int>(
                     tooltip: 'Abrir perfil',
-                    onSelected: _navigateTo,
+                    onSelected: (value) {
+                      if (value == -1) {
+                        unawaited(_logoutFromProfileMenu());
+                      } else {
+                        _navigateTo(value);
+                      }
+                    },
                     itemBuilder: (context) => [
                       PopupMenuItem(
                         value: 11,
@@ -1816,70 +3146,191 @@ class _AppShellState extends State<AppShell> {
                           ],
                         ),
                       ),
-                    ],
-                    child: CircleAvatar(
-                      radius: 15,
-                      backgroundColor: accent.withValues(alpha: .2),
-                      child: Text(
-                        name.isEmpty ? 'W' : name.substring(0, 1).toUpperCase(),
-                        style: const TextStyle(
-                          color: accent,
-                          fontWeight: FontWeight.w900,
-                          fontSize: 11,
+                      const PopupMenuDivider(),
+                      const PopupMenuItem(
+                        value: -1,
+                        child: Row(
+                          children: [
+                            Icon(Icons.logout, size: 18),
+                            SizedBox(width: 10),
+                            Text('Sair da conta'),
+                          ],
                         ),
                       ),
+                    ],
+                    child: ProfileAvatar(
+                      name: name,
+                      imageUrl:
+                          (profile['avatarUrl'] ?? profile['avatarPlaceholder'])
+                              ?.toString(),
+                      radius: 15,
                     ),
                   ),
                 ],
               );
             },
           ),
-          PopupMenuButton<int>(
-            tooltip: 'Abrir outra área',
-            icon: const Icon(Icons.apps, color: softText),
-            onSelected: _navigateTo,
-            itemBuilder: (context) => [
-              const PopupMenuItem(value: 0, child: Text('Visão Geral')),
-              const PopupMenuItem(value: 1, child: Text('Atividade')),
-              const PopupMenuItem(value: 2, child: Text('Treinos')),
-              ..._visibleModules.entries.map(
-                (entry) =>
-                    PopupMenuItem(value: entry.key, child: Text(entry.value)),
+          if (wide)
+            Builder(
+              builder: (drawerContext) => IconButton(
+                tooltip: 'Menu de navega\u00e7\u00e3o',
+                onPressed: () => Scaffold.of(drawerContext).openDrawer(),
+                icon: const Icon(Icons.menu, color: softText),
               ),
-            ],
-          ),
+            ),
         ],
       ),
     ),
   );
+  Widget _navigationDrawer() {
+    final routes = _DesktopSidebar.routes.where(
+      (route) =>
+          (route.page != 7 || _role == 'personal') &&
+          (route.page != 18 || _role != 'personal'),
+    );
+    return SafeArea(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 12, 12, 18),
+            child: Row(
+              children: [
+                const Expanded(child: Brand()),
+                IconButton(
+                  tooltip: 'Fechar menu',
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const Icon(Icons.close, color: softText),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: SizedBox(
+              height: 42,
+              child: FilledButton.icon(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  _openWorkoutBuilder();
+                },
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('NOVO TREINO'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: accent,
+                  foregroundColor: stitchOnPrimaryContainer,
+                  textStyle: const TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 11,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              children: routes.map((route) {
+                final selected = route.page == _index;
+                return ListTile(
+                  dense: true,
+                  minLeadingWidth: 24,
+                  selected: selected,
+                  selectedTileColor: stitchSurfaceHigh,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(9),
+                  ),
+                  leading: Icon(
+                    route.icon,
+                    size: 18,
+                    color: selected ? accent : softText,
+                  ),
+                  title: Text(
+                    route.label,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: selected ? lightText : softText,
+                      fontWeight: selected ? FontWeight.w800 : FontWeight.w500,
+                    ),
+                  ),
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    _navigateTo(route.page);
+                  },
+                );
+              }).toList(),
+            ),
+          ),
+          const Padding(
+            padding: EdgeInsets.fromLTRB(18, 10, 18, 14),
+            child: Text(
+              'WEGYM PERFORMANCE OS',
+              style: TextStyle(
+                color: Colors.white38,
+                fontSize: 9,
+                fontWeight: FontWeight.w800,
+                letterSpacing: .7,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _logoutFromProfileMenu() async {
+    await Api.logout();
+    if (!mounted) return;
+    _navigationHistory.clear();
+    setState(() => _index = 0);
+    widget.onLogout();
+  }
+
   Widget _page() {
     if (_index == 0) return _homePage();
     if (_index == 1) {
-      return HistoryPage(
-        key: ValueKey(_revision),
-        preview: const bool.fromEnvironment('PREVIEW_DASHBOARD'),
-      );
+      return HistoryPage(key: ValueKey(_revision), preview: Api.isDemoSession);
     }
     if (_index == 2) {
       return WorkoutBuilderPage(
         onStartSession: _startWorkout,
         onStartPlannedSession: _startWorkoutWithExercises,
+        onSessionSaved: () => setState(() => _revision++),
       );
     }
+    if (_index == 18) {
+      return GpsSessionPage(
+        preview: Api.isDemoSession,
+        initialActivity: _dashboardGpsActivity,
+        onSaved: () => setState(() => _revision++),
+        onBack: _goBack,
+      );
+    }
+    if (_index == 21) {
+      return ModalitySessionPage(
+        preview: Api.isDemoSession,
+        initialModality: _dashboardModality,
+        onSaved: () => setState(() => _revision++),
+      );
+    }
+    if (_index == 19) return const BleMonitorPage();
     if (_index == 17) {
       final controller = _sessionController;
       if (controller == null) return _homePage();
       return WorkoutSessionPage(
         key: ValueKey('session-$_sessionRevision'),
-        preview: const bool.fromEnvironment('PREVIEW_DASHBOARD'),
+        preview: Api.isDemoSession,
         controller: controller,
         onExit: _exitWorkout,
+        onSaved: () => unawaited(_reload()),
       );
     }
     if (_visibleModules.containsKey(_index)) {
       return FigmaModulePage(
         key: ValueKey(_index),
         module: _visibleModules[_index]!,
+        onNavigate: _navigateTo,
         onLogout: () async {
           await Api.logout();
           widget.onLogout();
@@ -1900,26 +3351,51 @@ class _AppShellState extends State<AppShell> {
         if (!didPop) _goBack();
       },
       child: Scaffold(
-        body: Row(
-          children: [
-            if (wide)
-              _DesktopSidebar(
-                selectedIndex: _index,
-                personalAccount: _role == 'personal',
-                onSelected: _navigateTo,
-                onNewWorkout: _openWorkoutBuilder,
-              ),
-            Expanded(
-              child: Column(
+        drawer: Drawer(
+          key: const ValueKey('navigation-drawer'),
+          width: 288,
+          backgroundColor: stitchSidebar,
+          child: _navigationDrawer(),
+        ),
+        body: LayoutBuilder(
+          builder: (context, constraints) => Stack(
+            children: [
+              Row(
                 children: [
-                  _topBar(wide),
-                  if (_sessionController != null && _index != 17)
-                    _activeSessionBanner(_sessionController!),
-                  Expanded(child: _page()),
+                  if (wide)
+                    _DesktopSidebar(
+                      selectedIndex: _index,
+                      personalAccount: _role == 'personal',
+                      onSelected: _navigateTo,
+                      onNewWorkout: _openWorkoutBuilder,
+                    ),
+                  Expanded(
+                    child: Column(
+                      children: [
+                        _topBar(wide),
+                        if (_offlinePendingCount > 0 || Api.isOfflineMode)
+                          _offlineStatusBanner(),
+                        if (_sessionController != null &&
+                            !_sessionController!.saved &&
+                            _index != 17)
+                          _activeSessionBanner(_sessionController!),
+                        Expanded(child: _page()),
+                      ],
+                    ),
+                  ),
                 ],
               ),
-            ),
-          ],
+              if (!wide || _index == 2)
+                DraggableAiAssistant(
+                  onPressed: () => showAiCoachSheet(
+                    context,
+                    onStartWorkout: _role == 'atleta'
+                        ? _startWorkoutWithExercises
+                        : null,
+                  ),
+                ),
+            ],
+          ),
         ),
         bottomNavigationBar: wide
             ? null
@@ -2034,6 +3510,9 @@ class _DesktopSidebar extends StatelessWidget {
     _SidebarRoute('Check-in', Icons.check_circle_outline, 14),
     _SidebarRoute('Amigos', Icons.people_alt_outlined, 15),
     _SidebarRoute('Aulas', Icons.calendar_view_week, 16),
+    _SidebarRoute('Atividade GPS', Icons.location_on_outlined, 18),
+    _SidebarRoute('Wearables & Sensores', Icons.bluetooth_searching, 19),
+    _SidebarRoute('Conquistas', Icons.military_tech, 20),
   ];
 
   @override
@@ -2071,9 +3550,14 @@ class _DesktopSidebar extends StatelessWidget {
             const SizedBox(height: 8),
             Expanded(
               child: ListView(
+                key: const ValueKey('desktop-sidebar-scroll'),
                 padding: const EdgeInsets.symmetric(horizontal: 8),
                 children: routes
-                    .where((route) => route.page != 7 || personalAccount)
+                    .where(
+                      (route) =>
+                          (route.page != 7 || personalAccount) &&
+                          (route.page != 18 || !personalAccount),
+                    )
                     .map((route) {
                       final selected = route.page == selectedIndex;
                       return Material(
@@ -2814,3 +4298,133 @@ String duration(double value) {
 
 String formatClock(int seconds) =>
     '${(seconds ~/ 3600).toString().padLeft(2, '0')}:${((seconds % 3600) ~/ 60).toString().padLeft(2, '0')}:${(seconds % 60).toString().padLeft(2, '0')}';
+
+class DraggableAiAssistant extends StatefulWidget {
+  const DraggableAiAssistant({super.key, required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  State<DraggableAiAssistant> createState() => _DraggableAiAssistantState();
+}
+
+class _DraggableAiAssistantState extends State<DraggableAiAssistant> {
+  Offset? _position;
+  bool _compact = false;
+
+  static const double _expandedWidth = 204;
+  static const double _compactWidth = 104;
+  static const double _height = 56;
+  static const double _edge = 12;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final width = _compact ? _compactWidth : _expandedWidth;
+      final maxLeft = (constraints.maxWidth - width - _edge)
+          .clamp(_edge, double.infinity)
+          .toDouble();
+      final maxTop = (constraints.maxHeight - _height - _edge)
+          .clamp(72.0, double.infinity)
+          .toDouble();
+      final position = _position ?? Offset(maxLeft, maxTop);
+      final left = position.dx.clamp(_edge, maxLeft).toDouble();
+      final top = position.dy.clamp(72.0, maxTop).toDouble();
+
+      return Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Positioned(
+            left: left,
+            top: top,
+            child: GestureDetector(
+              key: const ValueKey('wegym-ai-coach-drag-handle'),
+              behavior: HitTestBehavior.opaque,
+              onPanUpdate: (details) => setState(() {
+                _position = Offset(
+                  left + details.delta.dx,
+                  top + details.delta.dy,
+                );
+              }),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    width: _compact ? 56 : 156,
+                    height: _height,
+                    child: Material(
+                      color: accent,
+                      borderRadius: BorderRadius.circular(18),
+                      elevation: 7,
+                      shadowColor: accent.withValues(alpha: .35),
+                      child: InkWell(
+                        key: const ValueKey('wegym-ai-coach-button'),
+                        onTap: widget.onPressed,
+                        borderRadius: BorderRadius.circular(18),
+                        child: Center(
+                          child: _compact
+                              ? const Icon(
+                                  Icons.auto_awesome,
+                                  color: Colors.black,
+                                  size: 22,
+                                )
+                              : const FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Icons.auto_awesome,
+                                        color: Colors.black,
+                                        size: 20,
+                                      ),
+                                      SizedBox(width: 8),
+                                      Text(
+                                        'ASSISTENTE IA',
+                                        style: TextStyle(
+                                          color: Colors.black,
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Material(
+                    color: stitchSurfaceLow,
+                    shape: const CircleBorder(),
+                    child: IconButton(
+                      key: const ValueKey('wegym-ai-coach-resize'),
+                      tooltip: _compact
+                          ? 'Ampliar bot\u00e3o do assistente'
+                          : 'Diminuir bot\u00e3o do assistente',
+                      visualDensity: VisualDensity.compact,
+                      constraints: const BoxConstraints.tightFor(
+                        width: 42,
+                        height: 42,
+                      ),
+                      onPressed: () => setState(() {
+                        _compact = !_compact;
+                        _position = Offset(left, top);
+                      }),
+                      icon: Icon(
+                        _compact ? Icons.open_in_full : Icons.remove,
+                        color: lightText,
+                        size: 18,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      );
+    },
+  );
+}

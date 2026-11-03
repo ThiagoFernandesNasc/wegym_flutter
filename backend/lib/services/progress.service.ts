@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { ForbiddenError } from '@/lib/errors';
+import { requireAthleteAccess } from '@/lib/athlete-access';
 
 export const progressService = {
   async create(athleteId: string, data: { date: string; weight: number; muscleMass?: number; bodyFat?: number; note?: string }) {
@@ -26,7 +27,7 @@ export const progressService = {
     if (userId) {
       const entry = await prisma.progressEntry.findUnique({ where: { id }, select: { athleteId: true } });
       if (!entry) throw new ForbiddenError('Registro não encontrado');
-      if (entry.athleteId !== userId) throw new ForbiddenError('Sem permissão para excluir este registro');
+      await requireAthleteAccess(entry.athleteId, userId);
     }
     await prisma.progressEntry.delete({ where: { id } });
   },
