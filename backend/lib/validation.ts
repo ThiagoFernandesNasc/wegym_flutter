@@ -121,14 +121,29 @@ export const checkinSchema = z.object({
   trained: z.boolean().optional(),
 });
 
+const socialImageSchema = z.string().max(400_000).refine((value) => {
+  if (/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/]+=*$/.test(value)) return true;
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' || url.protocol === 'http:';
+  } catch {
+    return false;
+  }
+}, 'Informe uma imagem válida');
+
 export const socialPostSchema = z.object({
   text: z.string().max(2000).optional(),
   workoutId: z.string().uuid().optional(),
-  imageUrl: z.string().url().optional(),
+  imageUrl: socialImageSchema.optional(),
+}).refine((value) => !!value.text?.trim() || !!value.imageUrl || !!value.workoutId, {
+  message: 'Adicione um texto ou uma foto à publicação',
 });
 
 export const socialCommentSchema = z.object({
-  text: z.string().min(1, 'Comentário vazio').max(1000, 'Comentário muito longo'),
+  text: z.string().max(1000, 'Comentário muito longo').default(''),
+  imageUrl: socialImageSchema.optional(),
+}).refine((value) => value.text.trim().length > 0 || !!value.imageUrl, {
+  message: 'Adicione um texto ou uma foto ao comentário',
 });
 
 export const friendRequestSchema = z.object({
@@ -152,6 +167,7 @@ export const messageSchema = z.object({
 
 export const challengeJoinSchema = z.object({
   challengeId: z.string().uuid(),
+  athleteId: z.string().uuid().optional(),
 });
 
 export const challengeCreateSchema = z
@@ -244,6 +260,14 @@ export const appointmentSlotSchema = z.object({
   date: z.string(),
   startTime: z.string().regex(/^\d{2}:\d{2}$/),
   endTime: z.string().regex(/^\d{2}:\d{2}$/),
+});
+
+export const weeklyClassSchema = z.object({
+  athleteId: z.string().uuid(),
+  day: z.enum(['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab', 'Dom']),
+  date: z.string().datetime(),
+  time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+  type: z.string().trim().min(2).max(50),
 });
 
 export const consentSchema = z.object({

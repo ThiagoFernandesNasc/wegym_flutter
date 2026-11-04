@@ -63,9 +63,22 @@ class _NutritionMealBuilderDialogState
       (food['id'] ?? food['_localId'] ?? food['name'] ?? '').toString();
 
   String _unit(Map<String, dynamic> food) {
-    final value = (food['servingUnit'] ?? 'g').toString();
-    return value == 'unit' ? 'un.' : value;
+    final value = (food['servingUnit'] ?? 'g').toString().trim().toLowerCase();
+    return switch (value) {
+      'unit' || 'units' || 'un' || 'un.' || 'unidade' => 'unidade',
+      'ml' || 'milliliter' || 'milliliters' => 'ml',
+      'kg' => 'kg',
+      'portion' || 'porcao' || 'porção' => 'porção',
+      '' => 'g',
+      _ => value,
+    };
   }
+
+  String _formatNumber(double value, {int decimals = 1}) =>
+      value.toStringAsFixed(decimals).replaceFirst(RegExp(r'\.0+$'), '');
+
+  String _portionLabel(double amount) =>
+      '${_formatNumber(amount, decimals: 2)} ${amount == 1 ? 'porção' : 'porções'}';
 
   void _filter(String value) {
     final query = _normalize(value.trim());
@@ -432,7 +445,7 @@ class _NutritionMealBuilderDialogState
   }
 
   Widget _foodList() => _panel(
-    'Alimentos disponíveis',
+    'Alimentos sugeridos',
     Column(
       children: [
         Expanded(
@@ -455,9 +468,7 @@ class _NutritionMealBuilderDialogState
                     final id = _id(food);
                     final selected = _selected.containsKey(id);
                     final serving = _n(food['servingSize']);
-                    final servingText = serving.toStringAsFixed(
-                      serving == serving.roundToDouble() ? 0 : 1,
-                    );
+                    final servingText = _formatNumber(serving);
                     return ListTile(
                       dense: true,
                       title: Text(
@@ -468,7 +479,7 @@ class _NutritionMealBuilderDialogState
                         ),
                       ),
                       subtitle: Text(
-                        '${_n(food['calories']).round()} kcal / $servingText ${_unit(food)}',
+                        'Porção: $servingText ${_unit(food)} • ${_n(food['calories']).round()} kcal',
                         style: const TextStyle(
                           color: stitchMuted,
                           fontSize: 11,
@@ -512,6 +523,14 @@ class _NutritionMealBuilderDialogState
                 entry.value['food'] as Map,
               );
               final amount = _n(entry.value['amount']);
+              final serving = _n(food['servingSize']) * amount;
+              final calories = (_n(food['calories']) * amount).round();
+              final portionDetails = <String>[
+                _portionLabel(amount),
+                if (serving > 0)
+                  '${_formatNumber(serving, decimals: 2)} ${_unit(food)}',
+                '$calories kcal',
+              ];
               return ListTile(
                 dense: true,
                 title: Text(
@@ -519,12 +538,7 @@ class _NutritionMealBuilderDialogState
                   style: const TextStyle(color: stitchText, fontSize: 12),
                 ),
                 subtitle: Text(
-                  amount.toStringAsFixed(
-                        amount == amount.roundToDouble() ? 0 : 2,
-                      ) +
-                      ' porção(ões) · ' +
-                      (_n(food['calories']) * amount).round().toString() +
-                      ' kcal',
+                  portionDetails.join(' • '),
                   style: const TextStyle(color: stitchMuted, fontSize: 11),
                 ),
                 leading: IconButton(

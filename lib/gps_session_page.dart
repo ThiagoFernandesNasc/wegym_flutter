@@ -13,12 +13,14 @@ class GpsSessionPage extends StatefulWidget {
     this.onSaved,
     this.onBack,
     this.initialActivity = 'Corrida',
+    this.athleteId,
   });
 
   final bool preview;
   final VoidCallback? onSaved;
   final VoidCallback? onBack;
   final String initialActivity;
+  final String? athleteId;
 
   @override
   State<GpsSessionPage> createState() => _GpsSessionPageState();
@@ -287,6 +289,7 @@ class _GpsSessionPageState extends State<GpsSessionPage> {
     try {
       final coordinates = _sampleCoordinates();
       await Api.post('/api/gps-sessions', {
+        if (widget.athleteId != null) 'athleteId': widget.athleteId,
         'modality': switch (_activity) {
           'Corrida' => 'running',
           'Ciclismo' => 'cycling',

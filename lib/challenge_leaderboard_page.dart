@@ -51,7 +51,11 @@ class _ChallengeLeaderboardPageState extends State<ChallengeLeaderboardPage> {
 
   String _name(dynamic value) {
     final user = _map(_map(value)['user']);
-    final name = user['displayName'] ?? _map(value)['displayName'];
+    final name =
+        user['displayName'] ??
+        _map(user['athlete'])['name'] ??
+        _map(user['personal'])['name'] ??
+        _map(value)['displayName'];
     final text = name?.toString().trim() ?? '';
     return text.isEmpty ? 'Atleta' : text;
   }

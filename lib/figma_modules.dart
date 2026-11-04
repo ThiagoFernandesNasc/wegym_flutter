@@ -34,6 +34,51 @@ const _demoChallengeParticipants = <Map<String, String>>[
   {'displayName': 'Ana Souza'},
 ];
 
+const _demoPersonalMedals = <Map<String, dynamic>>[
+  {
+    'id': 'preview-personal-first-athlete',
+    'title': 'Primeiro Acompanhamento',
+    'description': 'Vincule seu primeiro aluno ao perfil de personal.',
+    'icon': '\u{1F91D}',
+    'xpReward': 50,
+  },
+  {
+    'id': 'preview-personal-five-athletes',
+    'title': 'Equipe em Forma',
+    'description': 'Acompanhe cinco alunos vinculados.',
+    'icon': '\u{1F465}',
+    'xpReward': 100,
+  },
+  {
+    'id': 'preview-personal-ten-athletes',
+    'title': 'Coach de Destaque',
+    'description': 'Acompanhe dez alunos vinculados.',
+    'icon': '\u{1F3C5}',
+    'xpReward': 200,
+  },
+  {
+    'id': 'preview-personal-twenty-five-athletes',
+    'title': 'Refer\u00eancia em Treinamento',
+    'description': 'Acompanhe 25 alunos vinculados.',
+    'icon': '\u{1F3C6}',
+    'xpReward': 350,
+  },
+  {
+    'id': 'preview-personal-fifty-athletes',
+    'title': 'Lideran\u00e7a de Elite',
+    'description': 'Acompanhe 50 alunos vinculados.',
+    'icon': '\u{1F451}',
+    'xpReward': 500,
+  },
+  {
+    'id': 'preview-personal-hundred-athletes',
+    'title': 'Legado WeGYM',
+    'description': 'Acompanhe 100 alunos vinculados.',
+    'icon': '\u{1F31F}',
+    'xpReward': 1000,
+  },
+];
+
 const _demoAvailableMedals = <Map<String, dynamic>>[
   {
     'id': 'preview-medal-first-workout',
@@ -87,6 +132,13 @@ class _FigmaModulePageState extends State<FigmaModulePage> {
   String _currentUserId = '';
   String _currentUserName = '';
   String _currentRole = 'atleta';
+  bool _hasAthleteProfile = false;
+  String? _selectedMeasurementAthleteId;
+  List<Map<String, dynamic>> _measurementAthletes = [];
+  String? _selectedChallengeAthleteId;
+  List<Map<String, dynamic>> _challengeAthletes = [];
+  List<Map<String, dynamic>> get _previewAchievementCatalog =>
+      _currentRole == 'personal' ? _demoPersonalMedals : _demoAvailableMedals;
   String? _athletesNextCursor;
   bool _athletesHasMore = false;
   bool _loadingMoreAthletes = false;
@@ -101,6 +153,7 @@ class _FigmaModulePageState extends State<FigmaModulePage> {
   final _deleteConfirmation = TextEditingController();
   String? _activeChatUserId;
   String _activeChatName = '';
+  Map<String, dynamic>? _chatPersonalContact;
   List<dynamic> _activeChatMessages = [];
   DateTime _nutritionDate = DateTime.now();
   final HealthPlatformIntegration _healthPlatform = HealthPlatformIntegration();
@@ -518,10 +571,67 @@ class _FigmaModulePageState extends State<FigmaModulePage> {
   Future<List<dynamic>> _load() async {
     if (Api.isDemoSession) {
       _currentRole = await Api.previewRole() ?? 'atleta';
+      _hasAthleteProfile = false;
       _currentUserName = _currentRole == 'personal'
           ? 'Rafael Costa'
           : 'Jo\u00e3o Silva';
       final previewData = _preview();
+      if (widget.module == 'Chat' && _currentRole == 'personal') {
+        final inbox = _map(previewData.isNotEmpty ? previewData[0] : null);
+        final rawConversations = inbox['conversations'];
+        final conversations = Map<String, dynamic>.from(
+          rawConversations is Map ? _map(rawConversations) : const {},
+        );
+        final sent = List<dynamic>.from(
+          rawConversations is List
+              ? rawConversations
+              : _list(conversations['sent']),
+        );
+        sent.addAll([
+          {
+            'receiver': {
+              'id': 'preview-student-1',
+              'displayName': 'Mariana Costa',
+            },
+          },
+          {
+            'receiver': {
+              'id': 'preview-student-2',
+              'displayName': 'Pedro Almeida',
+            },
+          },
+          {
+            'receiver': {
+              'id': 'preview-student-3',
+              'displayName': 'Julia Santos',
+            },
+          },
+        ]);
+        conversations['sent'] = sent;
+        inbox['conversations'] = conversations;
+        while (previewData.isEmpty) {
+          previewData.add(<dynamic>[]);
+        }
+        previewData[0] = inbox;
+      }
+      if (widget.module == 'Aulas' && _currentRole == 'personal') {
+        final students = [
+          {'id': 'preview-athlete-1', 'name': 'Mariana Costa'},
+          {'id': 'preview-athlete-2', 'name': 'Pedro Almeida'},
+          {'id': 'preview-athlete-3', 'name': 'Julia Santos'},
+        ];
+        final classes = List<Map<String, dynamic>>.from(
+          _list(
+            previewData.isNotEmpty ? previewData[0] : null,
+          ).map((item) => Map<String, dynamic>.from(_map(item))),
+        );
+        classes.addAll(await Api.previewClasses());
+        while (previewData.length < 2) {
+          previewData.add(<dynamic>[]);
+        }
+        previewData[0] = classes;
+        previewData[1] = students;
+      }
       final challengeIndex = switch (widget.module) {
         'Comunidade' => 1,
         'Metas & Desafios' => 1,
@@ -545,7 +655,9 @@ class _FigmaModulePageState extends State<FigmaModulePage> {
     }
     final profile = await Api.profile();
     _currentUserId = profile['id']?.toString() ?? '';
+    _hasAthleteProfile = _map(profile['athlete']).isNotEmpty;
     final athleteName = _text(_map(profile['athlete'])['name']).trim();
+    _chatPersonalContact = _map(_map(profile['athlete'])['personal']);
     final personalName = _text(_map(profile['personal'])['name']).trim();
     final displayName = _text(profile['displayName'] ?? profile['name']).trim();
     final emailName = _text(profile['email']).split('@').first.trim();
@@ -568,9 +680,54 @@ class _FigmaModulePageState extends State<FigmaModulePage> {
         },
       ];
     }
-    if (role == 'personal' &&
-        (widget.module == 'Analytics & Performance' ||
-            widget.module == 'Medidas')) {
+    if (role == 'personal' && widget.module == 'Medidas') {
+      List<Map<String, dynamic>> athletes;
+      try {
+        athletes = await Api.athletes();
+        _measurementAthletes = athletes;
+      } catch (error) {
+        return [
+          {
+            '_error':
+                'N\u00e3o foi poss\u00edvel carregar os alunos vinculados: $error',
+          },
+          [],
+          [],
+          _measurementAthletes,
+        ];
+      }
+      final availableIds = athletes
+          .map((athlete) => _text(athlete['id']))
+          .where((id) => id.isNotEmpty)
+          .toSet();
+      if (!availableIds.contains(_selectedMeasurementAthleteId)) {
+        _selectedMeasurementAthleteId = availableIds.isEmpty
+            ? null
+            : availableIds.first;
+      }
+      final athleteId = _selectedMeasurementAthleteId;
+      if (athleteId == null) return [[], [], [], _measurementAthletes];
+      final queryId = Uri.encodeQueryComponent(athleteId);
+      try {
+        final values = await Future.wait([
+          Api.get('/api/body-measurements?athleteId=$queryId'),
+          Api.get('/api/body-measurements?metric=weight&athleteId=$queryId'),
+          Api.get('/api/body-measurements?metric=bodyFat&athleteId=$queryId'),
+        ]);
+        return [...values, _measurementAthletes];
+      } catch (error) {
+        return [
+          {
+            '_error':
+                'N\u00e3o foi poss\u00edvel carregar as avalia\u00e7\u00f5es do aluno selecionado: $error',
+          },
+          [],
+          [],
+          _measurementAthletes,
+        ];
+      }
+    }
+    if (role == 'personal' && widget.module == 'Analytics & Performance') {
       return [
         {
           '__info':
@@ -579,6 +736,20 @@ class _FigmaModulePageState extends State<FigmaModulePage> {
       ];
     }
     final paths = _paths;
+    if (widget.module == 'Chat' && _currentRole == 'personal') {
+      paths.add('/api/athletes?take=50');
+    }
+    if (widget.module == 'Aulas' && _currentRole == 'personal') {
+      paths.add('/api/athletes?take=50');
+    }
+    if (widget.module == 'Chat') {
+      paths.add('/api/friends');
+    }
+    if (_currentRole == 'personal' &&
+        (widget.module == 'Comunidade' ||
+            widget.module == 'Metas & Desafios')) {
+      paths.add('/api/athletes?take=50');
+    }
     if (widget.module == 'Agendamentos') {
       final personalUserId = _currentRole == 'personal'
           ? _currentUserId
@@ -600,6 +771,22 @@ class _FigmaModulePageState extends State<FigmaModulePage> {
         }
       }),
     );
+    if (_currentRole == 'personal' &&
+        (widget.module == 'Comunidade' ||
+            widget.module == 'Metas & Desafios') &&
+        result.isNotEmpty) {
+      final rows = _list(result.last);
+      _challengeAthletes = rows
+          .map((row) => Map<String, dynamic>.from(_map(row)))
+          .toList();
+      final validIds = _challengeAthletes
+          .map((athlete) => _text(athlete['id']))
+          .where((id) => id.isNotEmpty)
+          .toSet();
+      if (!validIds.contains(_selectedChallengeAthleteId)) {
+        _selectedChallengeAthleteId = validIds.isEmpty ? null : validIds.first;
+      }
+    }
     if (widget.module == 'Comunidade' && result.isNotEmpty) {
       final response = result[0];
       final feed = _map(response);
@@ -692,7 +879,7 @@ class _FigmaModulePageState extends State<FigmaModulePage> {
           },
         ],
         {
-          'achievements': _demoAvailableMedals,
+          'achievements': _previewAchievementCatalog,
           'userAchievements': [
             {
               'id': 'preview-earned-medal-1',
@@ -704,33 +891,13 @@ class _FigmaModulePageState extends State<FigmaModulePage> {
       ],
       'Conquistas' => [
         {
-          'achievements': [
-            {
-              'id': 'preview-achievement-1',
-              'title': 'Primeira semana',
-              'description': 'Complete sete dias de treino.',
-              'icon': '🏋ï¸',
-              'xpReward': 100,
-            },
-            {
-              'id': 'preview-achievement-2',
-              'title': 'Novo recorde',
-              'description': 'Supere uma marca pessoal.',
-              'icon': '🏆',
-              'xpReward': 150,
-            },
-            {
-              'id': 'preview-achievement-3',
-              'title': 'Consistência',
-              'description': 'Treine quatro vezes na semana.',
-              'icon': '🔥',
-              'xpReward': 200,
-            },
-          ],
+          'achievements': _previewAchievementCatalog,
           'userAchievements': [
             {
               'id': 'preview-earned-1',
-              'achievementId': 'preview-achievement-1',
+              'achievementId': _currentRole == 'personal'
+                  ? 'preview-personal-first-athlete'
+                  : 'preview-medal-first-workout',
               'earnedAt': now,
             },
           ],
@@ -915,7 +1082,7 @@ class _FigmaModulePageState extends State<FigmaModulePage> {
           },
         ],
         {
-          'achievements': _demoAvailableMedals,
+          'achievements': _previewAchievementCatalog,
           'userAchievements': [
             {
               'id': 'preview-earned-medal-1',
@@ -942,112 +1109,112 @@ class _FigmaModulePageState extends State<FigmaModulePage> {
                 'day': 1,
                 'name': 'Supino reto com barra',
                 'sets': '4',
-                'reps': '8?10',
+                'reps': '8\u201310',
               },
               {
                 'week': 1,
                 'day': 1,
                 'name': 'Supino inclinado com halteres',
                 'sets': '3',
-                'reps': '10?12',
+                'reps': '10\u201312',
               },
               {
                 'week': 1,
                 'day': 1,
                 'name': 'Crossover na polia',
                 'sets': '3',
-                'reps': '12?15',
+                'reps': '12\u201315',
               },
               {
                 'week': 1,
                 'day': 1,
                 'name': 'Tríceps na corda',
                 'sets': '3',
-                'reps': '10?12',
+                'reps': '10\u201312',
               },
               {
                 'week': 1,
                 'day': 2,
                 'name': 'Puxada alta pela frente',
                 'sets': '4',
-                'reps': '8?10',
+                'reps': '8\u201310',
               },
               {
                 'week': 1,
                 'day': 2,
                 'name': 'Remada baixa',
                 'sets': '3',
-                'reps': '10?12',
+                'reps': '10\u201312',
               },
               {
                 'week': 1,
                 'day': 2,
                 'name': 'Face pull',
                 'sets': '3',
-                'reps': '12?15',
+                'reps': '12\u201315',
               },
               {
                 'week': 1,
                 'day': 2,
                 'name': 'Rosca direta',
                 'sets': '3',
-                'reps': '10?12',
+                'reps': '10\u201312',
               },
               {
                 'week': 1,
                 'day': 3,
                 'name': 'Agachamento livre',
                 'sets': '4',
-                'reps': '8?10',
+                'reps': '8\u201310',
               },
               {
                 'week': 1,
                 'day': 3,
                 'name': 'Levantamento terra romeno',
                 'sets': '3',
-                'reps': '8?10',
+                'reps': '8\u201310',
               },
               {
                 'week': 1,
                 'day': 3,
                 'name': 'Cadeira extensora',
                 'sets': '3',
-                'reps': '12?15',
+                'reps': '12\u201315',
               },
               {
                 'week': 1,
                 'day': 3,
                 'name': 'Mesa flexora',
                 'sets': '3',
-                'reps': '10?12',
+                'reps': '10\u201312',
               },
               {
                 'week': 1,
                 'day': 4,
                 'name': 'Desenvolvimento com halteres',
                 'sets': '4',
-                'reps': '8?10',
+                'reps': '8\u201310',
               },
               {
                 'week': 1,
                 'day': 4,
                 'name': 'Elevação lateral',
                 'sets': '3',
-                'reps': '12?15',
+                'reps': '12\u201315',
               },
               {
                 'week': 1,
                 'day': 4,
                 'name': 'Tríceps testa',
                 'sets': '3',
-                'reps': '10?12',
+                'reps': '10\u201312',
               },
               {
                 'week': 1,
                 'day': 4,
                 'name': 'Rosca martelo',
                 'sets': '3',
-                'reps': '10?12',
+                'reps': '10\u201312',
               },
             ],
           },
@@ -1143,112 +1310,112 @@ class _FigmaModulePageState extends State<FigmaModulePage> {
                 'day': 1,
                 'name': 'Supino reto com barra',
                 'sets': '4',
-                'reps': '8?10',
+                'reps': '8\u201310',
               },
               {
                 'week': 1,
                 'day': 1,
                 'name': 'Supino inclinado com halteres',
                 'sets': '3',
-                'reps': '10?12',
+                'reps': '10\u201312',
               },
               {
                 'week': 1,
                 'day': 1,
                 'name': 'Crossover na polia',
                 'sets': '3',
-                'reps': '12?15',
+                'reps': '12\u201315',
               },
               {
                 'week': 1,
                 'day': 1,
                 'name': 'Tríceps na corda',
                 'sets': '3',
-                'reps': '10?12',
+                'reps': '10\u201312',
               },
               {
                 'week': 1,
                 'day': 2,
                 'name': 'Puxada alta pela frente',
                 'sets': '4',
-                'reps': '8?10',
+                'reps': '8\u201310',
               },
               {
                 'week': 1,
                 'day': 2,
                 'name': 'Remada baixa',
                 'sets': '3',
-                'reps': '10?12',
+                'reps': '10\u201312',
               },
               {
                 'week': 1,
                 'day': 2,
                 'name': 'Face pull',
                 'sets': '3',
-                'reps': '12?15',
+                'reps': '12\u201315',
               },
               {
                 'week': 1,
                 'day': 2,
                 'name': 'Rosca direta',
                 'sets': '3',
-                'reps': '10?12',
+                'reps': '10\u201312',
               },
               {
                 'week': 1,
                 'day': 3,
                 'name': 'Agachamento livre',
                 'sets': '4',
-                'reps': '8?10',
+                'reps': '8\u201310',
               },
               {
                 'week': 1,
                 'day': 3,
                 'name': 'Levantamento terra romeno',
                 'sets': '3',
-                'reps': '8?10',
+                'reps': '8\u201310',
               },
               {
                 'week': 1,
                 'day': 3,
                 'name': 'Cadeira extensora',
                 'sets': '3',
-                'reps': '12?15',
+                'reps': '12\u201315',
               },
               {
                 'week': 1,
                 'day': 3,
                 'name': 'Mesa flexora',
                 'sets': '3',
-                'reps': '10?12',
+                'reps': '10\u201312',
               },
               {
                 'week': 1,
                 'day': 4,
                 'name': 'Desenvolvimento com halteres',
                 'sets': '4',
-                'reps': '8?10',
+                'reps': '8\u201310',
               },
               {
                 'week': 1,
                 'day': 4,
                 'name': 'Elevação lateral',
                 'sets': '3',
-                'reps': '12?15',
+                'reps': '12\u201315',
               },
               {
                 'week': 1,
                 'day': 4,
                 'name': 'Tríceps testa',
                 'sets': '3',
-                'reps': '10?12',
+                'reps': '10\u201312',
               },
               {
                 'week': 1,
                 'day': 4,
                 'name': 'Rosca martelo',
                 'sets': '3',
-                'reps': '10?12',
+                'reps': '10\u201312',
               },
             ],
           },
@@ -1629,7 +1796,16 @@ class _FigmaModulePageState extends State<FigmaModulePage> {
                         else if (widget.module == 'Programas')
                           _programCatalog(data)
                         else if (widget.module == 'Chat')
-                          _chatInbox(primary)
+                          _chatInbox(
+                            primary,
+                            _currentRole == 'personal' && data.length > 1
+                                ? data[1]
+                                : null,
+                            data.length > (_currentRole == 'personal' ? 2 : 1)
+                                ? data[_currentRole == 'personal' ? 2 : 1]
+                                : null,
+                            _chatPersonalContact,
+                          )
                         else if (widget.module == 'Perfil & Configurações')
                           _profile(primary)
                         else if (widget.module == 'Planos PRO')
@@ -1743,6 +1919,12 @@ class _FigmaModulePageState extends State<FigmaModulePage> {
           children: [
             if (widget.module == 'Programas' && _currentRole == 'personal')
               _button('CRIAR PROGRAMA', Icons.add, _createProgram),
+            if (widget.module == 'Aulas' && _currentRole == 'personal')
+              _button(
+                'REGISTRAR AULA',
+                Icons.add,
+                () => _createClass(_snapshotData),
+              ),
             if (widget.module == 'Comunidade')
               _button('PUBLICAR', Icons.add, _composePost),
             if (widget.module == 'Metas & Desafios')
@@ -2287,45 +2469,129 @@ class _FigmaModulePageState extends State<FigmaModulePage> {
   }
 
   Widget _postList(List<dynamic> rows) => rows.isEmpty
-      ? _empty('Seu mural aparecer\u00e1 quando houver publica\u00e7\u00f5es.')
+      ? _empty('Seu mural aparecer? quando houver publica??es.')
       : Column(
           children: rows.map((value) {
             final post = _map(value);
-            return _rowCard(
-              '${_userName(post)}${post['isDemoExample'] == true ? ' \u00b7 DEMONSTRA\u00c7\u00c3O' : ''}',
-              _text(post['text'] ?? post['content']),
-              Icons.groups,
-              tail: Row(
-                mainAxisSize: MainAxisSize.min,
+            final id = _text(post['id']);
+            final isMine =
+                (id.startsWith('preview-post-') && Api.isDemoSession) ||
+                (_currentUserId.isNotEmpty &&
+                    _text(_map(post['user'])['id']) == _currentUserId);
+            final imageUrl = _text(post['imageUrl']).trim();
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  IconButton(
-                    tooltip: 'Curtir',
-                    onPressed: () => _togglePostLike(post),
-                    icon: Icon(
-                      post['likedByCurrentUser'] == true
-                          ? Icons.favorite
-                          : Icons.favorite_border,
-                      color: _mOrange,
+                  _rowCard(
+                    '${_userName(post)}${post['isDemoExample'] == true ? ' \u00b7 DEMONSTRA\u00c7\u00c3O' : ''}',
+                    _text(post['text'] ?? post['content']),
+                    Icons.groups,
+                    tail: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          tooltip: 'Curtir',
+                          onPressed: () => _togglePostLike(post),
+                          icon: Icon(
+                            post['likedByCurrentUser'] == true
+                                ? Icons.favorite
+                                : Icons.favorite_border,
+                            color: _mOrange,
+                          ),
+                        ),
+                        Text(_text(_map(post['_count'])['likes'])),
+                        const SizedBox(width: 6),
+                        IconButton(
+                          tooltip: 'Ver coment\u00e1rios',
+                          onPressed: () => _showPostComments(post),
+                          icon: const Icon(
+                            Icons.comment_outlined,
+                            color: _mOrange,
+                          ),
+                        ),
+                        Text(_text(_map(post['_count'])['comments'])),
+                        if (isMine)
+                          PopupMenuButton<String>(
+                            tooltip: 'Opções da publicação',
+                            onSelected: (action) {
+                              if (action == 'delete') _deletePost(post);
+                            },
+                            itemBuilder: (context) => const [
+                              PopupMenuItem(
+                                value: 'delete',
+                                child: Text('Apagar publicação'),
+                              ),
+                            ],
+                          ),
+                      ],
                     ),
                   ),
-                  Text(_text(_map(post['_count'])['likes'])),
-                  const SizedBox(width: 6),
-                  IconButton(
-                    tooltip: 'Ver coment\u00e1rios',
-                    onPressed: () => _showPostComments(post),
-                    icon: const Icon(Icons.comment_outlined, color: _mOrange),
-                  ),
-                  Text(_text(_map(post['_count'])['comments'])),
+                  if (imageUrl.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(
+                        left: 12,
+                        right: 12,
+                        top: 6,
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: _socialImage(imageUrl, height: 260),
+                      ),
+                    ),
                 ],
               ),
             );
           }).toList(),
         );
 
+  Widget _socialImage(String source, {double height = 180}) {
+    final image = source.startsWith('data:image/')
+        ? Image.memory(
+            base64Decode(source.substring(source.indexOf(',') + 1)),
+            fit: BoxFit.cover,
+            width: double.infinity,
+            height: height,
+          )
+        : Image.network(
+            source,
+            fit: BoxFit.cover,
+            width: double.infinity,
+            height: height,
+            errorBuilder: (_, _, _) => const SizedBox.shrink(),
+          );
+    return image;
+  }
+
+  Future<String?> _pickSocialImage() async {
+    try {
+      final selected = await ImagePicker().pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1280,
+        maxHeight: 1280,
+        imageQuality: 72,
+      );
+      if (selected == null) return null;
+      final bytes = await selected.readAsBytes();
+      if (bytes.length > 280_000) {
+        _showInfo('A foto excede o limite. Escolha uma imagem menor.');
+        return null;
+      }
+      final mimeType =
+          selected.mimeType == 'image/png' || selected.mimeType == 'image/webp'
+          ? selected.mimeType!
+          : 'image/jpeg';
+      return 'data:$mimeType;base64,${base64Encode(bytes)}';
+    } catch (error) {
+      if (mounted)
+        _showInfo('N\u00e3o foi poss\u00edvel selecionar a foto: $error');
+      return null;
+    }
+  }
+
   Future<void> _showPostComments(Map<String, dynamic> post) async {
-    final comments = _list(
-      post['comments'],
-    ).map((value) => _map(value)).toList();
+    final comments = _list(post['comments']).map(_map).toList();
     final total = _n(_map(post['_count'])['comments']).round();
     if ((Api.isDemoSession || post['isDemoExample'] == true) &&
         comments.length < total) {
@@ -2340,7 +2606,7 @@ class _FigmaModulePageState extends State<FigmaModulePage> {
         });
       }
     }
-    final addComment = await showDialog<bool>(
+    final result = await showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         backgroundColor: _mCard,
@@ -2352,36 +2618,76 @@ class _FigmaModulePageState extends State<FigmaModulePage> {
           ],
         ),
         content: SizedBox(
-          width: _dialogWidth(dialogContext, 420),
-          height: MediaQuery.sizeOf(dialogContext).height * .5,
+          width: _dialogWidth(dialogContext, 480),
+          height: MediaQuery.sizeOf(dialogContext).height * .55,
           child: comments.isEmpty
-              ? const Text(
-                  'Ainda n\u00e3o h\u00e1 coment\u00e1rios nesta publica\u00e7\u00e3o.',
-                  style: TextStyle(color: _mMuted),
+              ? const Center(
+                  child: Text(
+                    'Ainda n\u00e3o h\u00e1 coment\u00e1rios nesta publica\u00e7\u00e3o.',
+                    style: TextStyle(color: _mMuted),
+                  ),
                 )
               : ListView.separated(
                   shrinkWrap: true,
                   itemCount: comments.length,
                   separatorBuilder: (_, _) => const Divider(height: 16),
                   itemBuilder: (context, index) {
-                    final comment = _map(comments[index]);
-                    final name = _communityUserName(_map(comment['user']));
+                    final comment = comments[index];
+                    final user = _map(comment['user']);
+                    final name = _communityUserName(user);
+                    final commentId = _text(comment['id']);
+                    final isMine =
+                        commentId.startsWith('preview-comment-') ||
+                        (_currentUserId.isNotEmpty &&
+                            (_text(comment['userId']) == _currentUserId ||
+                                _text(user['id']) == _currentUserId));
+                    final imageUrl = _text(comment['imageUrl']).trim();
                     return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Text(
-                          name,
-                          style: const TextStyle(
-                            color: _mText,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 12,
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                name,
+                                style: const TextStyle(
+                                  color: _mText,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                            if (isMine && commentId.isNotEmpty)
+                              IconButton(
+                                tooltip: 'Apagar meu coment\u00e1rio',
+                                visualDensity: VisualDensity.compact,
+                                onPressed: () => Navigator.pop(
+                                  dialogContext,
+                                  'delete:$commentId',
+                                ),
+                                icon: const Icon(
+                                  Icons.delete_outline,
+                                  color: _mMuted,
+                                  size: 18,
+                                ),
+                              ),
+                          ],
+                        ),
+                        if (_text(comment['text']).trim().isNotEmpty)
+                          Text(
+                            _text(comment['text']),
+                            style: const TextStyle(
+                              color: _mMuted,
+                              fontSize: 13,
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          _text(comment['text']),
-                          style: const TextStyle(color: _mMuted, fontSize: 13),
-                        ),
+                        if (imageUrl.isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(10),
+                            child: _socialImage(imageUrl, height: 200),
+                          ),
+                        ],
                       ],
                     );
                   },
@@ -2389,36 +2695,135 @@ class _FigmaModulePageState extends State<FigmaModulePage> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('FECHAR'),
           ),
           FilledButton.icon(
-            onPressed: () => Navigator.pop(dialogContext, true),
+            onPressed: () => Navigator.pop(dialogContext, 'add'),
             icon: const Icon(Icons.add_comment_outlined),
             label: const Text('COMENTAR'),
           ),
         ],
       ),
     );
-    if (addComment == true && mounted) {
+    if (!mounted || result == null) return;
+    if (result == 'add') {
       await _commentPost(_text(post['id']));
+    } else if (result.startsWith('delete:')) {
+      await _deletePostComment(_text(post['id']), result.substring(7));
     }
+  }
+
+  Future<void> _deletePostComment(String postId, String commentId) async {
+    if (postId.isEmpty || commentId.isEmpty) return;
+    if (commentId.startsWith('preview-comment-') || Api.isDemoSession) {
+      final next = List<dynamic>.from(_snapshotData);
+      if (next.isEmpty) return;
+      final feed = Map<String, dynamic>.from(_map(next[0]));
+      final posts = List<dynamic>.from(_list(feed['posts']));
+      final index = posts.indexWhere(
+        (item) => _text(_map(item)['id']) == postId,
+      );
+      if (index < 0) return;
+      final post = Map<String, dynamic>.from(_map(posts[index]));
+      final comments = List<dynamic>.from(_list(post['comments']))
+        ..removeWhere((item) => _text(_map(item)['id']) == commentId);
+      post['comments'] = comments;
+      final counts = Map<String, dynamic>.from(_map(post['_count']));
+      counts['comments'] = comments.length;
+      post['_count'] = counts;
+      posts[index] = post;
+      feed['posts'] = posts;
+      next[0] = feed;
+      setState(() {
+        _snapshotData = next;
+        _data = Future.value(next);
+        _notice = 'Coment\u00e1rio apagado nesta pr\u00e9via.';
+      });
+      return;
+    }
+    await _run(
+      () => Api.delete('/api/social/$postId/comment/$commentId', {}),
+      'Seu coment\u00e1rio foi apagado.',
+    );
+  }
+
+  Future<void> _deletePost(Map<String, dynamic> post) async {
+    final id = _text(post['id']);
+    if (id.isEmpty) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: _mCard,
+        title: const Text('Apagar publicação?'),
+        content: const Text('Esta ação removerá sua publicação do mural.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('CANCELAR'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('APAGAR'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    if (id.startsWith('preview-post-') || Api.isDemoSession) {
+      final next = List<dynamic>.from(_snapshotData);
+      if (next.isEmpty) return;
+      final feed = Map<String, dynamic>.from(_map(next[0]));
+      final posts = List<dynamic>.from(_list(feed['posts']))
+        ..removeWhere((item) => _text(_map(item)['id']) == id);
+      feed['posts'] = posts;
+      next[0] = feed;
+      setState(() {
+        _snapshotData = next;
+        _data = Future.value(next);
+        _notice = 'Publica\u00e7\u00e3o apagada nesta pr\u00e9via.';
+      });
+      return;
+    }
+    await _run(
+      () => Api.delete('/api/social/$id', {}),
+      'Sua publicação foi apagada.',
+    );
   }
 
   bool _isParticipating(Map challenge) {
     final id = _text(challenge['id']);
     if (id.isEmpty) return false;
-    if (_joinedChallengeIds.contains(id)) return true;
-    return _currentUserId.isNotEmpty &&
-        _list(
-          challenge['participants'],
-        ).any((p) => _text(_map(p)['userId']) == _currentUserId);
+    if (Api.isDemoSession || _currentRole != 'personal') {
+      if (_joinedChallengeIds.contains(id)) return true;
+    }
+    final participantUserId = _currentRole == 'personal'
+        ? _text(_selectedChallengeAthlete?['userId'])
+        : _currentUserId;
+    return participantUserId.isNotEmpty &&
+        _list(challenge['participants']).any(
+          (participant) =>
+              _text(_map(participant)['userId']) == participantUserId,
+        );
   }
+
+  Map<String, dynamic>? get _selectedChallengeAthlete => _challengeAthletes
+      .where((athlete) => _text(athlete['id']) == _selectedChallengeAthleteId)
+      .firstOrNull;
 
   Future<void> _joinChallenge(Map challenge) async {
     final id = _text(challenge['id']);
     if (id.isEmpty || _isParticipating(challenge) || _busy) return;
     final demo = Api.isDemoSession;
+    final selectedAthlete = _currentRole == 'personal' && !demo
+        ? _selectedChallengeAthlete
+        : null;
+    if (_currentRole == 'personal' &&
+        !demo &&
+        (selectedAthlete == null || _text(selectedAthlete['id']).isEmpty)) {
+      setState(() => _notice = 'Selecione um aluno vinculado para participar.');
+      return;
+    }
     setState(() {
       _busy = true;
       _notice = '';
@@ -2433,7 +2838,11 @@ class _FigmaModulePageState extends State<FigmaModulePage> {
                 'Participa\u00e7\u00e3o registrada nesta pr\u00e9via.',
           );
       } else {
-        await Api.post('/api/challenges', {'challengeId': id});
+        await Api.post('/api/challenges', {
+          'challengeId': id,
+          if (selectedAthlete != null)
+            'athleteId': _text(selectedAthlete['id']),
+        });
         _joinedChallengeIds.add(id);
         await _refresh();
         if (mounted) setState(() => _notice = 'Voc\u00ea entrou no desafio.');
@@ -2451,6 +2860,9 @@ class _FigmaModulePageState extends State<FigmaModulePage> {
   Future<void> _leaveChallenge(Map challenge) async {
     final id = _text(challenge['id']);
     if (id.isEmpty || !_isParticipating(challenge) || _busy) return;
+    final selectedAthlete = _currentRole == 'personal' && !Api.isDemoSession
+        ? _selectedChallengeAthlete
+        : null;
     setState(() {
       _busy = true;
       _notice = '';
@@ -2465,7 +2877,13 @@ class _FigmaModulePageState extends State<FigmaModulePage> {
             _notice = 'Voc\u00ea saiu do desafio nesta pr\u00e9via.';
           });
       } else {
-        await Api.delete('/api/challenges/' + Uri.encodeComponent(id), {});
+        final athleteQuery = selectedAthlete == null
+            ? ''
+            : '?athleteId=${Uri.encodeQueryComponent(_text(selectedAthlete['id']))}';
+        await Api.delete(
+          '/api/challenges/${Uri.encodeComponent(id)}$athleteQuery',
+          {},
+        );
         _joinedChallengeIds.remove(id);
         await _refresh();
         if (mounted) setState(() => _notice = 'Voc\u00ea saiu do desafio.');
@@ -2598,6 +3016,8 @@ class _FigmaModulePageState extends State<FigmaModulePage> {
 
   Widget _challengeCards(List<dynamic> rows) => Column(
     children: [
+      if (_currentRole == 'personal' && !Api.isDemoSession)
+        _challengeAthleteSelector(),
       if (rows.isEmpty)
         _empty('Nenhum desafio ativo foi encontrado.')
       else
@@ -2610,23 +3030,58 @@ class _FigmaModulePageState extends State<FigmaModulePage> {
               .map((person) {
                 final participant = _map(person);
                 final user = _map(participant['user']);
-                return _text(
+                final profileName = _text(
                   participant['displayName'] ??
                       participant['name'] ??
                       user['displayName'] ??
-                      user['name'],
+                      user['name'] ??
+                      _map(user['athlete'])['name'] ??
+                      _map(user['personal'])['name'],
                 );
+                if (profileName.isNotEmpty) return profileName;
+                if (_currentRole == 'personal' && !demo) {
+                  final selectedAthlete = _selectedChallengeAthlete;
+                  if (selectedAthlete != null &&
+                      _text(participant['userId']) ==
+                          _text(selectedAthlete['userId'])) {
+                    final selectedName = _text(selectedAthlete['name']).trim();
+                    if (selectedName.isNotEmpty) return selectedName;
+                  }
+                }
+                if (_currentUserId.isNotEmpty &&
+                    _text(participant['userId']) == _currentUserId) {
+                  return _currentUserName;
+                }
+                return '';
               })
               .where((name) => name.isNotEmpty)
               .toList();
+          if (_currentRole == 'personal' && !demo && joined) {
+            final selectedName = _text(
+              _selectedChallengeAthlete?['name'],
+            ).trim();
+            if (selectedName.isNotEmpty && !names.contains(selectedName)) {
+              names.add(selectedName);
+            }
+          }
+          if ((_currentRole != 'personal' || _hasAthleteProfile) &&
+              !demo &&
+              joined) {
+            final accountName = _currentUserName.trim();
+            if (accountName.isNotEmpty && !names.contains(accountName)) {
+              names.add(accountName);
+            }
+          }
           final fictionalNames = demo
               ? <String>[]
               : _demoChallengeParticipants
                     .map((participant) => _text(participant['displayName']))
                     .where((name) => name.isNotEmpty && !names.contains(name))
                     .toList();
-          if (demo && joined && !names.contains('Voc\u00ea'))
-            names.add('Voc\u00ea');
+          final demoName = _currentUserName.isEmpty
+              ? 'Voc\u00ea'
+              : _currentUserName;
+          if (demo && joined && !names.contains(demoName)) names.add(demoName);
           return Padding(
             padding: const EdgeInsets.only(bottom: 10),
             child: _section(
@@ -2754,6 +3209,60 @@ class _FigmaModulePageState extends State<FigmaModulePage> {
         ),
       ),
     ],
+  );
+
+  Widget _challengeAthleteSelector() => Container(
+    width: double.infinity,
+    margin: const EdgeInsets.only(bottom: 12),
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(
+      color: _mRaised,
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: Colors.white10),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'ALUNO QUE PARTICIPARÁ',
+          style: TextStyle(
+            color: _mMuted,
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: 8),
+        if (_challengeAthletes.isEmpty)
+          const Text(
+            'Nenhum aluno vinculado foi encontrado. Vincule o atleta em Alunos & Personal.',
+            style: TextStyle(color: _mMuted, fontSize: 12),
+          )
+        else
+          DropdownButtonFormField<String>(
+            initialValue: _selectedChallengeAthleteId,
+            isExpanded: true,
+            decoration: const InputDecoration(
+              prefixIcon: Icon(Icons.person_outline),
+              labelText: 'Selecione um aluno vinculado',
+            ),
+            items: _challengeAthletes.map((athlete) {
+              final id = _text(athlete['id']);
+              final name = _text(athlete['name']).trim();
+              return DropdownMenuItem<String>(
+                value: id,
+                child: Text(name.isEmpty ? 'Atleta' : name),
+              );
+            }).toList(),
+            onChanged: (id) {
+              if (id == null) return;
+              setState(() {
+                _selectedChallengeAthleteId = id;
+                _notice = '';
+              });
+            },
+          ),
+      ],
+    ),
   );
 
   Widget _analytics(List<dynamic> d) {
@@ -3227,11 +3736,59 @@ class _FigmaModulePageState extends State<FigmaModulePage> {
         ),
         const SizedBox(height: 12),
         _section(
-          'ALIMENTOS DISPONÍVEIS',
+          'ALIMENTOS SUGERIDOS',
           Icons.search,
-          _genericList(foods, empty: 'Nenhum alimento encontrado.'),
+          _nutritionFoodList(foods),
         ),
       ],
+    );
+  }
+
+  Widget _nutritionFoodList(List<dynamic> foods) {
+    if (foods.isEmpty) {
+      return _empty(
+        'Nenhum alimento sugerido foi encontrado. Use “Adicionar alimento” na refeição para buscar ou cadastrar uma alternativa.',
+      );
+    }
+
+    String unitLabel(dynamic rawUnit) {
+      final unit = _text(rawUnit).trim().toLowerCase();
+      return switch (unit) {
+        'unit' || 'un' || 'un.' || 'unidade' || 'units' => 'unidade',
+        'ml' || 'milliliter' || 'milliliters' => 'ml',
+        'kg' => 'kg',
+        'portion' || 'porção' || 'porcao' => 'porção',
+        '' => 'g',
+        _ => unit,
+      };
+    }
+
+    String formatNumber(double value) =>
+        value.toStringAsFixed(value == value.roundToDouble() ? 0 : 1);
+
+    return Column(
+      children: foods.map((rawFood) {
+        final food = _map(rawFood);
+        final serving = _n(food['servingSize']);
+        final unit = unitLabel(food['servingUnit']);
+        final calories = _n(food['calories']).round();
+        final protein = _n(food['proteinG']);
+        final carbs = _n(food['carbsG']);
+        final fat = _n(food['fatG']);
+        final details = <String>[
+          if (serving > 0) 'Porção de ${formatNumber(serving)} $unit',
+          '$calories kcal',
+          if (food['proteinG'] != null) 'Proteínas: ${formatNumber(protein)} g',
+          if (food['carbsG'] != null) 'Carboidratos: ${formatNumber(carbs)} g',
+          if (food['fatG'] != null) 'Gorduras: ${formatNumber(fat)} g',
+        ];
+        final name = _text(food['name']).trim();
+        return _rowCard(
+          name.isEmpty ? 'Alimento' : name,
+          details.join(' • '),
+          Icons.restaurant_menu,
+        );
+      }).toList(),
     );
   }
 
@@ -3478,7 +4035,7 @@ class _FigmaModulePageState extends State<FigmaModulePage> {
                     _button(
                       'NOVO ALUNO',
                       Icons.person_add_alt_1,
-                      () => _showStudentForm(),
+                      _showStudentOptions,
                     ),
                   ],
                 ),
@@ -3665,6 +4222,168 @@ class _FigmaModulePageState extends State<FigmaModulePage> {
           isDense: true,
         ),
       ),
+    );
+  }
+
+  Future<void> _showStudentOptions() async {
+    final action = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: _mCard,
+        title: const Text('Adicionar aluno'),
+        content: const Text(
+          'Cadastre um aluno ou vincule uma conta existente.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, 'existing'),
+            child: const Text('VINCULAR ALUNO EXISTENTE'),
+          ),
+          FilledButton.icon(
+            onPressed: () => Navigator.pop(dialogContext, 'new'),
+            icon: const Icon(Icons.person_add_alt_1),
+            label: const Text('CADASTRAR NOVO'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || action == null) return;
+    if (action == 'new') {
+      await _showStudentForm();
+    } else {
+      await _showExistingStudentPicker();
+    }
+  }
+
+  Future<void> _showExistingStudentPicker() async {
+    if (Api.isDemoSession) {
+      setState(() {
+        _notice =
+            'O v\u00ednculo de contas fica dispon\u00edvel ao entrar com uma conta personal real.';
+      });
+      return;
+    }
+    final search = TextEditingController();
+    final available = Api.availableAthletes();
+    String? athleteId;
+    try {
+      athleteId = await showDialog<String>(
+        context: context,
+        builder: (dialogContext) => StatefulBuilder(
+          builder: (dialogContext, setDialogState) => AlertDialog(
+            backgroundColor: _mCard,
+            title: const Text('Selecionar aluno'),
+            content: SizedBox(
+              width: _dialogWidth(dialogContext, 520),
+              height: 420,
+              child: FutureBuilder<List<Map<String, dynamic>>>(
+                future: available,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState != ConnectionState.done) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  if (snapshot.hasError) {
+                    return Center(
+                      child: Text(
+                        'N\u00e3o foi poss\u00edvel carregar os alunos: ${snapshot.error}',
+                      ),
+                    );
+                  }
+                  final rows = snapshot.data ?? const <Map<String, dynamic>>[];
+                  final query = search.text.trim().toLowerCase();
+                  final filtered = rows.where((row) {
+                    final searchable =
+                        '${_text(row['name'])} ${_text(row['email'])}'
+                            .toLowerCase();
+                    return query.isEmpty || searchable.contains(query);
+                  }).toList();
+                  return Column(
+                    children: [
+                      TextField(
+                        controller: search,
+                        decoration: const InputDecoration(
+                          prefixIcon: Icon(Icons.search),
+                          hintText: 'Buscar por nome ou e-mail',
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                        ),
+                        onChanged: (_) => setDialogState(() {}),
+                      ),
+                      const SizedBox(height: 10),
+                      Expanded(
+                        child: filtered.isEmpty
+                            ? Center(
+                                child: Text(
+                                  rows.isEmpty
+                                      ? 'N\u00e3o h\u00e1 contas de aluno sem personal vinculado.'
+                                      : 'Nenhum aluno corresponde \u00e0 busca.',
+                                ),
+                              )
+                            : ListView.separated(
+                                itemCount: filtered.length,
+                                separatorBuilder: (_, _) =>
+                                    const Divider(height: 1),
+                                itemBuilder: (context, index) {
+                                  final row = filtered[index];
+                                  final name = _text(row['name']).trim();
+                                  final location =
+                                      [_text(row['city']), _text(row['state'])]
+                                          .where((part) => part.isNotEmpty)
+                                          .join(' ? ');
+                                  final subtitle = [
+                                    _text(row['email']),
+                                    location,
+                                  ].where((part) => part.isNotEmpty).join('\n');
+                                  return ListTile(
+                                    leading: CircleAvatar(
+                                      child: Text(
+                                        (name.isEmpty ? 'A' : name[0])
+                                            .toUpperCase(),
+                                      ),
+                                    ),
+                                    title: Text(name.isEmpty ? 'Aluno' : name),
+                                    subtitle: subtitle.isEmpty
+                                        ? null
+                                        : Text(subtitle),
+                                    isThreeLine: location.isNotEmpty,
+                                    onTap: () => Navigator.pop(
+                                      dialogContext,
+                                      _text(row['id']),
+                                    ),
+                                  );
+                                },
+                              ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('CANCELAR'),
+              ),
+            ],
+          ),
+        ),
+      );
+    } finally {
+      search.dispose();
+    }
+    if (athleteId == null || !mounted) return;
+    if (athleteId.isEmpty) {
+      _showInfo(
+        'A conta selecionada n\u00e3o possui um identificador v\u00e1lido.',
+      );
+      return;
+    }
+    if (widget.module == 'Medidas') {
+      _selectedMeasurementAthleteId = athleteId;
+    }
+    await _run(
+      () => Api.linkAthlete(athleteId!),
+      'Aluno vinculado ? sua lista.',
     );
   }
 
@@ -4415,8 +5134,8 @@ class _FigmaModulePageState extends State<FigmaModulePage> {
             String formatValue(double value) => value == value.roundToDouble()
                 ? value.round().toString()
                 : value.toString().replaceAll('.', ',');
-            // Os campos numÃƒÂ©ricos sÃƒÂ£o a fonte atual do progresso. O texto
-            // legado `progresso` pode ficar desatualizado apÃƒÂ³s uma ediÃƒÂ§ÃƒÂ£o.
+            // Os campos numéricos são a fonte atual do progresso. O texto
+            // legado `progresso` pode ficar desatualizado após uma edição.
             final progressText = target > 0
                 ? '${formatValue(current)} de ${formatValue(target)} $displayMetric'
                 : 'Defina um valor-alvo';
@@ -4741,7 +5460,7 @@ class _FigmaModulePageState extends State<FigmaModulePage> {
             'id': 'preview-history-$userId',
             'senderId': userId,
             'receiverId': _currentUserId.isEmpty
-                ? 'preview-athlete'
+                ? 'preview-current-user'
                 : _currentUserId,
             'text': 'Olá! Esta é uma conversa de demonstração.',
           },
@@ -4818,7 +5537,7 @@ class _FigmaModulePageState extends State<FigmaModulePage> {
         ..add({
           'id': 'preview-message-${DateTime.now().microsecondsSinceEpoch}',
           'senderId': _currentUserId.isEmpty
-              ? 'preview-athlete'
+              ? 'preview-current-user'
               : _currentUserId,
           'receiverId': receiverId,
           'text': text,
@@ -4852,9 +5571,17 @@ class _FigmaModulePageState extends State<FigmaModulePage> {
     }
   }
 
-  Widget _chatInbox(dynamic raw) {
+  Widget _chatInbox(
+    dynamic raw, [
+    dynamic linkedAthletesRaw,
+    dynamic friendsRaw,
+    Map<String, dynamic>? personalContact,
+  ]) {
     final root = _map(raw);
-    final source = _map(root['conversations']);
+    final rawConversations = root['conversations'];
+    final source = rawConversations is List
+        ? <String, dynamic>{'sent': rawConversations, 'received': <dynamic>[]}
+        : _map(rawConversations);
     final contacts = <String, Map<String, dynamic>>{};
     for (final row in _list(source['sent'])) {
       final user = _map(_map(row)['receiver']);
@@ -4866,22 +5593,59 @@ class _FigmaModulePageState extends State<FigmaModulePage> {
       final id = _text(user['id']);
       if (id.isNotEmpty) contacts[id] = user;
     }
+    for (final rawAthlete in _list(linkedAthletesRaw)) {
+      final athlete = _map(rawAthlete);
+      final userId = _text(athlete['userId']);
+      final name = _text(athlete['name']).trim();
+      if (userId.isEmpty) continue;
+      contacts[userId] = {
+        'id': userId,
+        'displayName': name.isEmpty ? 'Aluno' : name,
+        'contactType': 'athlete',
+      };
+    }
+    for (final rawFriend in _list(friendsRaw)) {
+      final friend = _map(rawFriend);
+      final id = _text(friend['id']);
+      if (id.isEmpty) continue;
+      contacts[id] = {
+        ...friend,
+        'displayName': _text(friend['displayName']).isNotEmpty
+            ? friend['displayName']
+            : 'Amigo WeGYM',
+        'contactType': 'friend',
+      };
+    }
+    if (_currentRole != 'personal' && personalContact != null) {
+      final id = _text(personalContact['id'] ?? personalContact['userId']);
+      if (id.isNotEmpty) {
+        contacts[id] = {
+          ...personalContact,
+          'displayName': _text(personalContact['name']).isNotEmpty
+              ? personalContact['name']
+              : 'Meu personal',
+          'contactType': 'personal',
+        };
+      }
+    }
     return Column(
       children: [
         _section(
-          'CONVERSAS',
+          _currentRole == 'personal' ? 'CONVERSAS E ALUNOS' : 'CONVERSAS',
           Icons.forum,
           contacts.isEmpty
               ? _empty('Nenhuma conversa disponível.')
               : Column(
                   children: contacts.entries.map((entry) {
                     final name = _text(entry.value['displayName']).isEmpty
-                        ? 'Atleta'
+                        ? (_currentRole == 'personal' ? 'Aluno' : 'Atleta')
                         : _text(entry.value['displayName']);
                     return _rowCard(
                       name,
                       'Toque para abrir o histórico de mensagens.',
-                      Icons.person,
+                      entry.value['contactType'] == 'athlete'
+                          ? Icons.school
+                          : Icons.person,
                       tail: _button(
                         _activeChatUserId == entry.key ? 'ABERTA' : 'ABRIR',
                         Icons.chat,
@@ -4915,8 +5679,11 @@ class _FigmaModulePageState extends State<FigmaModulePage> {
                           itemCount: _activeChatMessages.length,
                           itemBuilder: (context, index) {
                             final message = _map(_activeChatMessages[index]);
-                            final mine =
-                                _text(message['senderId']) == _currentUserId;
+                            final mine = _currentUserId.isNotEmpty
+                                ? _text(message['senderId']) == _currentUserId
+                                : Api.isDemoSession &&
+                                      _text(message['senderId']) ==
+                                          'preview-current-user';
                             final time = _messageTime(message['createdAt']);
                             return Align(
                               alignment: mine
@@ -4961,7 +5728,13 @@ class _FigmaModulePageState extends State<FigmaModulePage> {
                 Row(
                   key: _chatComposerKey,
                   children: [
-                    Expanded(child: _input(_message, 'Escreva uma mensagem')),
+                    Expanded(
+                      child: _input(
+                        _message,
+                        'Escreva uma mensagem',
+                        onSubmitted: (_) => _sendChatMessage(),
+                      ),
+                    ),
                     const SizedBox(width: 8),
                     _button(
                       'ENVIAR',
@@ -5635,6 +6408,72 @@ class _FigmaModulePageState extends State<FigmaModulePage> {
 
   Widget _measurements(List<dynamic> d) => Column(
     children: [
+      if (_currentRole == 'personal') ...[
+        _section(
+          'SELECIONE O ALUNO',
+          Icons.person_search,
+          _measurementAthletes.isEmpty
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _empty('Nenhum aluno vinculado a este personal.'),
+                    const SizedBox(height: 10),
+                    _button(
+                      'VINCULAR OU CADASTRAR ALUNO',
+                      Icons.person_add_alt_1,
+                      _showStudentOptions,
+                    ),
+                    const SizedBox(height: 8),
+                    TextButton.icon(
+                      onPressed: widget.onNavigate == null
+                          ? null
+                          : () => widget.onNavigate!(7),
+                      icon: const Icon(Icons.people_outline),
+                      label: const Text('ABRIR ALUNOS & PERSONAL'),
+                    ),
+                  ],
+                )
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    DropdownButtonFormField<String>(
+                      initialValue: _selectedMeasurementAthleteId,
+                      decoration: const InputDecoration(
+                        labelText: 'Aluno avaliado',
+                        prefixIcon: Icon(Icons.person_outline),
+                      ),
+                      items: _measurementAthletes.map((athlete) {
+                        final id = _text(athlete['id']);
+                        final name = _text(athlete['name']).trim();
+                        return DropdownMenuItem<String>(
+                          value: id,
+                          child: Text(name.isEmpty ? 'Atleta' : name),
+                        );
+                      }).toList(),
+                      onChanged: (id) {
+                        if (id == null || id == _selectedMeasurementAthleteId) {
+                          return;
+                        }
+                        setState(() {
+                          _selectedMeasurementAthleteId = id;
+                          _data = _load();
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 8),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        onPressed: _showStudentOptions,
+                        icon: const Icon(Icons.person_add_alt_1),
+                        label: const Text('VINCULAR OUTRO ALUNO'),
+                      ),
+                    ),
+                  ],
+                ),
+        ),
+        const SizedBox(height: 12),
+      ],
       _section(
         'HISTÓRICO DE AVALIAÇÕES',
         Icons.monitor_weight,
@@ -5793,14 +6632,248 @@ class _FigmaModulePageState extends State<FigmaModulePage> {
     );
   }
 
-  Widget _classes(List<dynamic> d) => _section(
-    'AULAS AGENDADAS',
-    Icons.calendar_month,
-    _genericList(
-      _list(d.isNotEmpty ? d[0] : null),
-      empty: 'Nenhuma aula foi encontrada para esta conta.',
-    ),
-  );
+  Widget _classes(List<dynamic> data) {
+    final classes = _list(data.isNotEmpty ? data[0] : null);
+    final students = _list(data.length > 1 ? data[1] : null);
+    return _section(
+      'AULAS AGENDADAS',
+      Icons.calendar_month,
+      Column(
+        children: [
+          if (_currentRole == 'personal' && students.isEmpty)
+            _empty('Vincule alunos para registrar aulas.'),
+          if (classes.isEmpty)
+            _empty('Nenhuma aula foi encontrada para esta conta.')
+          else
+            ...classes.map((rawClass) {
+              final item = _map(rawClass);
+              final athlete = _map(item['athlete']);
+              final athleteId = _text(athlete['id'] ?? item['athleteId']);
+              final linkedStudent = students
+                  .map(_map)
+                  .where((student) => _text(student['id']) == athleteId)
+                  .firstOrNull;
+              final athleteName = _text(
+                athlete['name'] ??
+                    _map(linkedStudent)['name'] ??
+                    item['athleteName'],
+              );
+              final date = DateTime.tryParse(_text(item['date']));
+              final dateText = date == null
+                  ? _text(item['date'])
+                  : '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
+              final statusLabel = switch (_text(item['status'])) {
+                'confirmed' => 'Confirmada',
+                'scheduled' => 'Agendada',
+                'pending' => 'Pendente',
+                'canceled' => 'Cancelada',
+                _ => _text(item['status']),
+              };
+              final details = [
+                if (athleteName.isNotEmpty) athleteName,
+                if (dateText.isNotEmpty) dateText,
+                if (_text(item['time']).isNotEmpty) _text(item['time']),
+                statusLabel,
+              ].where((value) => value.isNotEmpty).join(' • ');
+              return _rowCard(
+                _text(item['type']).isEmpty ? 'Aula' : _text(item['type']),
+                details,
+                Icons.event_available,
+              );
+            }),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _createClass(List<dynamic> data) async {
+    if (_currentRole != 'personal') {
+      _showInfo('Somente contas Personal podem registrar aulas.');
+      return;
+    }
+    final students = _list(data.length > 1 ? data[1] : null)
+        .map((item) => _map(item))
+        .where((student) => _text(student['id']).isNotEmpty)
+        .toList();
+    if (students.isEmpty) {
+      _showInfo('Vincule um aluno antes de registrar uma aula.');
+      return;
+    }
+
+    final typeController = TextEditingController(text: 'Treino acompanhado');
+    var selectedAthleteId = _text(students.first['id']);
+    var selectedDate = DateUtils.dateOnly(DateTime.now());
+    var selectedTime = const TimeOfDay(hour: 18, minute: 0);
+    final classDetails = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          backgroundColor: _mCard,
+          title: const Text('Registrar aula'),
+          content: SizedBox(
+            width: _dialogWidth(dialogContext, 500),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  DropdownButtonFormField<String>(
+                    initialValue: selectedAthleteId,
+                    decoration: const InputDecoration(
+                      labelText: 'Aluno',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: students
+                        .map(
+                          (student) => DropdownMenuItem(
+                            value: _text(student['id']),
+                            child: Text(
+                              _text(student['name']).isEmpty
+                                  ? 'Aluno'
+                                  : _text(student['name']),
+                            ),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (value) {
+                      if (value != null) {
+                        setDialogState(() => selectedAthleteId = value);
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: typeController,
+                    maxLength: 50,
+                    decoration: const InputDecoration(
+                      labelText: 'Tipo de aula',
+                      hintText: 'Ex.: Treino de força, avaliação física',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () async {
+                            final value = await showDatePicker(
+                              context: dialogContext,
+                              initialDate: selectedDate,
+                              firstDate: DateUtils.dateOnly(DateTime.now()),
+                              lastDate: DateTime.now().add(
+                                const Duration(days: 365),
+                              ),
+                            );
+                            if (value != null) {
+                              setDialogState(
+                                () => selectedDate = DateUtils.dateOnly(value),
+                              );
+                            }
+                          },
+                          icon: const Icon(Icons.calendar_today),
+                          label: Text(
+                            '${selectedDate.day.toString().padLeft(2, '0')}/${selectedDate.month.toString().padLeft(2, '0')}/${selectedDate.year}',
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () async {
+                            final value = await showTimePicker(
+                              context: dialogContext,
+                              initialTime: selectedTime,
+                            );
+                            if (value != null) {
+                              setDialogState(() => selectedTime = value);
+                            }
+                          },
+                          icon: const Icon(Icons.schedule),
+                          label: Text(selectedTime.format(dialogContext)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('CANCELAR'),
+            ),
+            FilledButton.icon(
+              onPressed: () {
+                final type = typeController.text.trim();
+                if (type.length < 2) return;
+                Navigator.pop(dialogContext, {
+                  'athleteId': selectedAthleteId,
+                  'type': type,
+                  'day': const [
+                    'Dom',
+                    'Seg',
+                    'Ter',
+                    'Qua',
+                    'Qui',
+                    'Sex',
+                    'Sab',
+                  ][selectedDate.weekday % 7],
+                  'date': DateTime(
+                    selectedDate.year,
+                    selectedDate.month,
+                    selectedDate.day,
+                    12,
+                  ).toUtc().toIso8601String(),
+                  'time':
+                      '${selectedTime.hour.toString().padLeft(2, '0')}:${selectedTime.minute.toString().padLeft(2, '0')}',
+                });
+              },
+              icon: const Icon(Icons.event_available),
+              label: const Text('REGISTRAR AULA'),
+            ),
+          ],
+        ),
+      ),
+    );
+    typeController.dispose();
+    if (classDetails == null || !mounted) return;
+
+    final athlete = students.firstWhere(
+      (student) => _text(student['id']) == classDetails['athleteId'],
+      orElse: () => <String, dynamic>{},
+    );
+    if (Api.isDemoSession) {
+      final newClass = <String, dynamic>{
+        ...classDetails,
+        'id': 'preview-class-${DateTime.now().microsecondsSinceEpoch}',
+        'status': 'confirmed',
+        'athlete': {
+          'id': classDetails['athleteId'],
+          'name': _text(athlete['name']),
+        },
+      };
+      final savedClasses = await Api.previewClasses();
+      await Api.savePreviewClasses([...savedClasses, newClass]);
+      final next = List<dynamic>.from(_snapshotData);
+      while (next.length < 2) {
+        next.add(<dynamic>[]);
+      }
+      next[0] = [newClass, ..._list(next[0])];
+      setState(() {
+        _snapshotData = next;
+        _data = Future.value(next);
+        _notice = 'Aula registrada nesta prévia.';
+      });
+      return;
+    }
+
+    await _run(
+      () => Api.post('/api/classes', classDetails),
+      'Aula registrada para ${_text(athlete['name'])}.',
+    );
+  }
+
   Widget _section(String title, IconData icon, Widget child) =>
       StitchSection(title: title, icon: icon, child: child);
 
@@ -5955,10 +7028,15 @@ class _FigmaModulePageState extends State<FigmaModulePage> {
     ),
     child: Text(text, style: const TextStyle(color: _mMuted, fontSize: 11)),
   );
-  Widget _input(TextEditingController c, String label) => Padding(
+  Widget _input(
+    TextEditingController c,
+    String label, {
+    ValueChanged<String>? onSubmitted,
+  }) => Padding(
     padding: const EdgeInsets.only(bottom: 8),
     child: TextField(
       controller: c,
+      onSubmitted: onSubmitted,
       decoration: InputDecoration(
         labelText: label,
         border: const OutlineInputBorder(),
@@ -5977,42 +7055,125 @@ class _FigmaModulePageState extends State<FigmaModulePage> {
   }
 
   Future<void> _composePost() async {
-    final text = await _prompt(
-      'Nova publicação',
-      'O que você quer compartilhar?',
+    final controller = TextEditingController();
+    String? imageUrl;
+    final post = await showDialog<Map<String, String>?>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          backgroundColor: _mCard,
+          title: const Text('Nova publicação'),
+          content: SizedBox(
+            width: _dialogWidth(dialogContext, 520),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  TextField(
+                    controller: controller,
+                    autofocus: true,
+                    minLines: 3,
+                    maxLines: 6,
+                    maxLength: 2000,
+                    decoration: const InputDecoration(
+                      hintText: 'O que voc? quer compartilhar?',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  if (imageUrl != null) ...[
+                    const SizedBox(height: 8),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: _socialImage(imageUrl!, height: 200),
+                    ),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton.icon(
+                        onPressed: () => setDialogState(() => imageUrl = null),
+                        icon: const Icon(Icons.close),
+                        label: const Text('REMOVER FOTO'),
+                      ),
+                    ),
+                  ],
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: OutlinedButton.icon(
+                      onPressed: () async {
+                        final image = await _pickSocialImage();
+                        if (image != null && dialogContext.mounted) {
+                          setDialogState(() => imageUrl = image);
+                        }
+                      },
+                      icon: const Icon(Icons.photo_library_outlined),
+                      label: const Text('ADICIONAR FOTO'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('CANCELAR'),
+            ),
+            FilledButton.icon(
+              onPressed: () {
+                if (controller.text.trim().isEmpty && imageUrl == null) return;
+                Navigator.pop(dialogContext, {
+                  'text': controller.text.trim(),
+                  if (imageUrl != null) 'imageUrl': imageUrl!,
+                });
+              },
+              icon: const Icon(Icons.send),
+              label: const Text('PUBLICAR'),
+            ),
+          ],
+        ),
+      ),
     );
-    if (text != null && text.trim().isNotEmpty) {
-      if (Api.isDemoSession) {
-        final next = List<dynamic>.from(_snapshotData);
-        if (next.isEmpty) return;
-        final feed = Map<String, dynamic>.from(_map(next[0]));
-        final posts = List<dynamic>.from(_list(feed['posts']));
-        posts.insert(0, {
-          'id': 'preview-post-${DateTime.now().microsecondsSinceEpoch}',
-          'text': text.trim(),
-          'createdAt': DateTime.now().toIso8601String(),
-          'user': {
-            'displayName': _currentUserName.isEmpty
-                ? 'Usu\u00e1rio'
-                : _currentUserName,
-          },
-          '_count': {'likes': 0, 'comments': 0},
-          'likedByCurrentUser': false,
-        });
-        feed['posts'] = posts;
-        next[0] = feed;
-        setState(() {
-          _snapshotData = next;
-          _data = Future.value(next);
-          _notice = 'Publicação criada nesta prévia.';
-        });
-        return;
-      }
-      await _run(
-        () => Api.post('/api/social', {'text': text.trim()}),
-        'Publicação enviada.',
-      );
+    await Future<void>.delayed(const Duration(milliseconds: 250));
+    controller.dispose();
+    if (post == null || !mounted) return;
+    final text = post['text']?.trim() ?? '';
+    final image = post['imageUrl'];
+    if (Api.isDemoSession) {
+      final next = List<dynamic>.from(_snapshotData);
+      if (next.isEmpty) return;
+      final feed = Map<String, dynamic>.from(_map(next[0]));
+      final posts = List<dynamic>.from(_list(feed['posts']));
+      posts.insert(0, {
+        'id': 'preview-post-${DateTime.now().microsecondsSinceEpoch}',
+        'text': text,
+        if (image != null) 'imageUrl': image,
+        'createdAt': DateTime.now().toIso8601String(),
+        'user': {
+          'id': _currentUserId,
+          'displayName': _currentUserName.isEmpty
+              ? 'Usu\u00e1rio'
+              : _currentUserName,
+        },
+        '_count': {'likes': 0, 'comments': 0},
+        'comments': <dynamic>[],
+        'likedByCurrentUser': false,
+      });
+      feed['posts'] = posts;
+      next[0] = feed;
+      setState(() {
+        _snapshotData = next;
+        _data = Future.value(next);
+        _notice = 'Publica\u00e7\u00e3o criada nesta pr\u00e9via.';
+      });
+      return;
     }
+    await _run(
+      () => Api.post('/api/social', {
+        if (text.isNotEmpty) 'text': text,
+        if (image != null) 'imageUrl': image,
+      }),
+      'Publica??o enviada.',
+    );
   }
 
   Future<void> _togglePostLike(Map<String, dynamic> post) async {
@@ -6053,45 +7214,135 @@ class _FigmaModulePageState extends State<FigmaModulePage> {
   }
 
   Future<void> _commentPost(String id) async {
-    final text = await _prompt('Comentar publicação', 'Escreva seu comentário');
-    if (text != null && text.trim().isNotEmpty) {
-      if (Api.isDemoSession || id.startsWith('demo-post-')) {
-        final next = List<dynamic>.from(_snapshotData);
-        if (next.isEmpty) return;
-        final feed = Map<String, dynamic>.from(_map(next[0]));
-        final posts = List<dynamic>.from(_list(feed['posts']));
-        final index = posts.indexWhere((item) => _text(_map(item)['id']) == id);
-        if (index < 0) return;
-        final updated = Map<String, dynamic>.from(_map(posts[index]));
-        final counts = Map<String, dynamic>.from(_map(updated['_count']));
-        counts['comments'] = _n(counts['comments']).round() + 1;
-        updated['_count'] = counts;
-        updated['comments'] = [
-          ..._list(updated['comments']),
-          {
-            'text': text.trim(),
-            'user': {
-              'displayName': _currentUserName.isEmpty
-                  ? 'Usu\u00e1rio'
-                  : _currentUserName,
-            },
+    if (id.isEmpty) return;
+    final controller = TextEditingController();
+    String? imageUrl;
+    final comment = await showDialog<Map<String, String>?>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          backgroundColor: _mCard,
+          title: const Text('Comentar publicação'),
+          content: SizedBox(
+            width: _dialogWidth(dialogContext, 480),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  TextField(
+                    controller: controller,
+                    autofocus: true,
+                    minLines: 2,
+                    maxLines: 5,
+                    maxLength: 1000,
+                    decoration: const InputDecoration(
+                      hintText: 'Escreva seu coment\u00e1rio',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  if (imageUrl != null) ...[
+                    const SizedBox(height: 8),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: _socialImage(imageUrl!, height: 180),
+                    ),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton.icon(
+                        onPressed: () => setDialogState(() => imageUrl = null),
+                        icon: const Icon(Icons.close),
+                        label: const Text('REMOVER FOTO'),
+                      ),
+                    ),
+                  ],
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: OutlinedButton.icon(
+                      onPressed: () async {
+                        final image = await _pickSocialImage();
+                        if (image != null && dialogContext.mounted) {
+                          setDialogState(() => imageUrl = image);
+                        }
+                      },
+                      icon: const Icon(Icons.photo_library_outlined),
+                      label: const Text('ADICIONAR FOTO'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('CANCELAR'),
+            ),
+            FilledButton.icon(
+              onPressed: () {
+                if (controller.text.trim().isEmpty && imageUrl == null) return;
+                Navigator.pop(dialogContext, {
+                  'text': controller.text.trim(),
+                  if (imageUrl != null) 'imageUrl': imageUrl!,
+                });
+              },
+              icon: const Icon(Icons.send),
+              label: const Text('ENVIAR'),
+            ),
+          ],
+        ),
+      ),
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 250));
+    controller.dispose();
+    if (comment == null || !mounted) return;
+    final text = comment['text']?.trim() ?? '';
+    final image = comment['imageUrl'];
+    if (Api.isDemoSession ||
+        id.startsWith('demo-post-') ||
+        id.startsWith('preview-post-')) {
+      final next = List<dynamic>.from(_snapshotData);
+      if (next.isEmpty) return;
+      final feed = Map<String, dynamic>.from(_map(next[0]));
+      final posts = List<dynamic>.from(_list(feed['posts']));
+      final index = posts.indexWhere((item) => _text(_map(item)['id']) == id);
+      if (index < 0) return;
+      final updated = Map<String, dynamic>.from(_map(posts[index]));
+      final timestamp = DateTime.now().microsecondsSinceEpoch;
+      final comments = List<dynamic>.from(_list(updated['comments']))
+        ..add({
+          'id': 'preview-comment-$timestamp',
+          'text': text,
+          if (image != null) 'imageUrl': image,
+          'userId': _currentUserId,
+          'user': {
+            'id': _currentUserId,
+            'displayName': _currentUserName.isEmpty
+                ? 'Usu\u00e1rio'
+                : _currentUserName,
           },
-        ];
-        posts[index] = updated;
-        feed['posts'] = posts;
-        next[0] = feed;
-        setState(() {
-          _snapshotData = next;
-          _data = Future.value(next);
-          _notice = 'Comentário adicionado nesta prévia.';
         });
-        return;
-      }
-      await _run(
-        () => Api.post('/api/social/$id/comment', {'text': text.trim()}),
-        'Comentário enviado.',
-      );
+      updated['comments'] = comments;
+      final counts = Map<String, dynamic>.from(_map(updated['_count']));
+      counts['comments'] = _n(counts['comments']).round() + 1;
+      updated['_count'] = counts;
+      posts[index] = updated;
+      feed['posts'] = posts;
+      next[0] = feed;
+      setState(() {
+        _snapshotData = next;
+        _data = Future.value(next);
+        _notice = 'Coment\u00e1rio adicionado nesta pr\u00e9via.';
+      });
+      return;
     }
+    await _run(
+      () => Api.post('/api/social/$id/comment', {
+        'text': text,
+        if (image != null) 'imageUrl': image,
+      }),
+      'Coment\u00e1rio enviado.',
+    );
   }
 
   Future<void> _editProfile() async {
@@ -6633,24 +7884,86 @@ class _FigmaModulePageState extends State<FigmaModulePage> {
   }
 
   Future<void> _createMeasurement() async {
-    final weight = await _prompt('Nova avaliação', 'Peso em kg');
-    if (weight == null) return;
-    final n = double.tryParse(weight.replaceAll(',', '.'));
-    if (n == null) {
-      _showInfo('Informe o peso em kg.');
+    if (_currentRole == 'personal' &&
+        _selectedMeasurementAthleteId == null &&
+        !Api.isDemoSession) {
+      _showInfo('Selecione um aluno antes de registrar a avalia\u00e7\u00e3o.');
       return;
     }
+    final weightText = await _prompt(
+      'Nova avalia\u00e7\u00e3o',
+      'Peso em kg (obrigat\u00f3rio)',
+      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+    );
+    if (weightText == null) return;
+    final weight = double.tryParse(weightText.replaceAll(',', '.'));
+    if (weight == null || weight < 20 || weight > 400) {
+      _showInfo('Informe um peso entre 20 e 400 kg.');
+      return;
+    }
+    final muscleText = await _prompt(
+      'Massa muscular',
+      'Massa muscular em kg (opcional)',
+      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+    );
+    if (muscleText == null) return;
+    final muscleMass = muscleText.trim().isEmpty
+        ? null
+        : double.tryParse(muscleText.replaceAll(',', '.'));
+    if (muscleText.trim().isNotEmpty &&
+        (muscleMass == null || muscleMass < 0 || muscleMass > 200)) {
+      _showInfo('Informe uma massa muscular entre 0 e 200 kg.');
+      return;
+    }
+    final fatText = await _prompt(
+      'Gordura corporal',
+      'Percentual de gordura (opcional)',
+      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+    );
+    if (fatText == null) return;
+    final bodyFat = fatText.trim().isEmpty
+        ? null
+        : double.tryParse(fatText.replaceAll(',', '.'));
+    if (fatText.trim().isNotEmpty &&
+        (bodyFat == null || bodyFat < 0 || bodyFat > 70)) {
+      _showInfo('Informe um percentual de gordura entre 0 e 70.');
+      return;
+    }
+    final note = await _prompt(
+      'Observa\u00e7\u00f5es',
+      'Observa\u00e7\u00f5es da avalia\u00e7\u00e3o (opcional)',
+    );
+    if (note == null) return;
+
     if (Api.isDemoSession) {
       final next = List<dynamic>.from(_snapshotData);
       final measurements = List<dynamic>.from(
         _list(next.isNotEmpty ? next[0] : const []),
       );
-      measurements.insert(0, {
-        'id': 'preview-measurement-${DateTime.now().microsecondsSinceEpoch}',
-        'name': 'Peso',
-        'value': '${n.toStringAsFixed(1)} kg',
-        'date': 'Agora',
-      });
+      final timestamp = DateTime.now().microsecondsSinceEpoch;
+      final records = <Map<String, dynamic>>[
+        {
+          'id': 'preview-measurement-weight-$timestamp',
+          'name': 'Peso',
+          'value': '${weight.toStringAsFixed(1)} kg',
+          'date': 'Agora',
+        },
+        if (muscleMass != null)
+          {
+            'id': 'preview-measurement-muscle-$timestamp',
+            'name': 'Massa muscular',
+            'value': '${muscleMass.toStringAsFixed(1)} kg',
+            'date': 'Agora',
+          },
+        if (bodyFat != null)
+          {
+            'id': 'preview-measurement-fat-$timestamp',
+            'name': 'Gordura corporal',
+            'value': '${bodyFat.toStringAsFixed(1)}%',
+            'date': 'Agora',
+          },
+      ];
+      measurements.insertAll(0, records);
       while (next.length < 3) {
         next.add([]);
       }
@@ -6658,16 +7971,21 @@ class _FigmaModulePageState extends State<FigmaModulePage> {
       setState(() {
         _snapshotData = next;
         _data = Future.value(next);
-        _notice = 'Avaliação registrada nesta prévia.';
+        _notice = 'Avalia\u00e7\u00e3o registrada nesta pr\u00e9via.';
       });
       return;
     }
     await _run(
       () => Api.post('/api/body-measurements', {
-        'weight': n,
+        'weight': weight,
+        if (muscleMass != null) 'muscleMass': muscleMass,
+        if (bodyFat != null) 'bodyFat': bodyFat,
+        if (note.trim().isNotEmpty) 'note': note.trim(),
         'date': DateTime.now().toIso8601String(),
+        if (_currentRole == 'personal')
+          'athleteId': _selectedMeasurementAthleteId,
       }),
-      'Avaliação registrada.',
+      'Avalia\u00e7\u00e3o registrada.',
     );
   }
 

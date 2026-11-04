@@ -1,7 +1,8 @@
 import { authenticate, handleError, json, created, withRateLimit } from '@/lib/api-utils';
 import { gamificationService } from '@/lib/services/gamification.service';
 import { challengeCreateSchema, challengeJoinSchema } from '@/lib/validation';
-import { ValidationError } from '@/lib/errors';
+import { ForbiddenError, NotFoundError, ValidationError } from '@/lib/errors';
+import { prisma } from '@/lib/prisma';
 
 export const runtime = 'nodejs';
 
@@ -31,8 +32,24 @@ export async function POST(request: Request) {
           parsedJoin.error.issues,
         );
       }
+      let participantUserId = session.user.id;
+      if (parsedJoin.data.athleteId) {
+        const role = (session.user as { role?: string }).role;
+        if (role !== 'personal') {
+          throw new ForbiddenError('Somente um personal pode inscrever um aluno.');
+        }
+        const athlete = await prisma.athlete.findFirst({
+          where: {
+            id: parsedJoin.data.athleteId,
+            personal: { userId: session.user.id },
+          },
+          select: { userId: true },
+        });
+        if (!athlete) throw new NotFoundError('Aluno vinculado');
+        participantUserId = athlete.userId;
+      }
       const participant = await gamificationService.joinChallenge(
-        session.user.id,
+        participantUserId,
         parsedJoin.data.challengeId,
       );
       return created(participant);

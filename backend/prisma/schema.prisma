@@ -36,26 +36,26 @@ model User {
   subscriptions Subscription[]
   integrations  Integration[]
 
-  messagesSent     Message[]        @relation("SentMessages")
-  messagesReceived Message[]        @relation("ReceivedMessages")
-  goals            Goal[]
-  checkIns         DailyCheckIn[]
-  achievements     UserAchievement[]
-  challengeParts   ChallengeParticipant[]
-  socialPosts      SocialPost[]
-  socialLikes      SocialLike[]
-  socialComments   SocialComment[]
-  friendships      Friendship[]     @relation("Requester")
-  friendsAdded     Friendship[]     @relation("Addressee")
-  createdChallenges Challenge[]
-  programs         Program[]
-  foodItems        FoodItem[]
-  mealLogs         MealLog[]
-  dietPlans        DietPlan[]
-  athleteAppointments Appointment[] @relation("AthleteAppointments")
-  personalAppointments Appointment[] @relation("PersonalAppointments")
-  appointmentSlots AppointmentSlot[]
-  auditLogs         AuditLog[]
+  messagesSent         Message[]              @relation("SentMessages")
+  messagesReceived     Message[]              @relation("ReceivedMessages")
+  goals                Goal[]
+  checkIns             DailyCheckIn[]
+  achievements         UserAchievement[]
+  challengeParts       ChallengeParticipant[]
+  socialPosts          SocialPost[]
+  socialLikes          SocialLike[]
+  socialComments       SocialComment[]
+  friendships          Friendship[]           @relation("Requester")
+  friendsAdded         Friendship[]           @relation("Addressee")
+  createdChallenges    Challenge[]
+  programs             Program[]
+  foodItems            FoodItem[]
+  mealLogs             MealLog[]
+  dietPlans            DietPlan[]
+  athleteAppointments  Appointment[]          @relation("AthleteAppointments")
+  personalAppointments Appointment[]          @relation("PersonalAppointments")
+  appointmentSlots     AppointmentSlot[]
+  auditLogs            AuditLog[]
 
   @@index([role])
   @@map("users")
@@ -113,6 +113,18 @@ model PersonalTrainer {
 
   name String @db.VarChar(255)
   cref String @unique @db.VarChar(20)
+
+  cep              String?           @db.VarChar(9)
+  city             String?           @db.VarChar(100)
+  state            String?           @db.Char(2)
+  age              Int?              @db.SmallInt
+  sex              UserSex?
+  heightCm         Int?              @db.SmallInt
+  weightKg         Float?
+  experienceLevel ExperienceLevel?
+  injury           String?
+  healthIssues     String?
+  medications      String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -192,26 +204,26 @@ enum WeekDay {
 }
 
 model Integration {
-  id        String   @id @default(uuid()) @db.Uuid
-  userId    String   @db.Uuid
-  provider  String   @db.VarChar(50) // strava, google_fit
-  enabled   Boolean  @default(true)
+  id          String  @id @default(uuid()) @db.Uuid
+  userId      String  @db.Uuid
+  provider    String  @db.VarChar(50) // strava, google_fit
+  enabled     Boolean @default(true)
   syncEnabled Boolean @default(true)
 
   // OAuth tokens
-  accessToken  String  @db.Text
-  refreshToken String? @db.Text
-  tokenType    String? @db.VarChar(50)
+  accessToken  String    @db.Text
+  refreshToken String?   @db.Text
+  tokenType    String?   @db.VarChar(50)
   expiresAt    DateTime?
-  scope        String? @db.VarChar(255)
+  scope        String?   @db.VarChar(255)
 
   // Provider-specific metadata (JSON)
   providerData Json?
 
-  lastSyncAt  DateTime?
-  nextSyncAt  DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  lastSyncAt DateTime?
+  nextSyncAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -284,12 +296,12 @@ model GpsSession {
 
 // === ENGAGEMENT ===
 model Message {
-  id        String   @id @default(uuid()) @db.Uuid
-  senderId  String   @db.Uuid
-  receiverId String  @db.Uuid
-  text      String   @db.Text
-  read      Boolean  @default(false)
-  createdAt DateTime @default(now())
+  id         String   @id @default(uuid()) @db.Uuid
+  senderId   String   @db.Uuid
+  receiverId String   @db.Uuid
+  text       String   @db.Text
+  read       Boolean  @default(false)
+  createdAt  DateTime @default(now())
 
   sender   User @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
   receiver User @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
@@ -300,18 +312,18 @@ model Message {
 }
 
 model Goal {
-  id         String   @id @default(uuid()) @db.Uuid
-  userId     String   @db.Uuid
-  title      String   @db.VarChar(255)
-  description String? @db.Text
-  category   String   @db.VarChar(50) // workout, weight, nutrition, cardio, custom
-  metric     String   @db.VarChar(100) // kg, sessions, km, minutes, etc.
-  targetValue Float
-  currentValue Float  @default(0)
-  startDate  DateTime @default(now())
-  endDate    DateTime
-  status     String   @default("active") @db.VarChar(20) // active, completed, cancelled
-  completedAt DateTime?
+  id           String    @id @default(uuid()) @db.Uuid
+  userId       String    @db.Uuid
+  title        String    @db.VarChar(255)
+  description  String?   @db.Text
+  category     String    @db.VarChar(50) // workout, weight, nutrition, cardio, custom
+  metric       String    @db.VarChar(100) // kg, sessions, km, minutes, etc.
+  targetValue  Float
+  currentValue Float     @default(0)
+  startDate    DateTime  @default(now())
+  endDate      DateTime
+  status       String    @default("active") @db.VarChar(20) // active, completed, cancelled
+  completedAt  DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -323,14 +335,14 @@ model Goal {
 }
 
 model DailyCheckIn {
-  id        String   @id @default(uuid()) @db.Uuid
-  userId    String   @db.Uuid
-  date      DateTime @default(now())
-  mood      Int      @db.SmallInt // 1-5
-  energy    Int      @db.SmallInt // 1-5
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @db.Uuid
+  date       DateTime @default(now())
+  mood       Int      @db.SmallInt // 1-5
+  energy     Int      @db.SmallInt // 1-5
   sleepHours Float?
-  note      String?  @db.Text
-  trained   Boolean  @default(false)
+  note       String?  @db.Text
+  trained    Boolean  @default(false)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -341,17 +353,17 @@ model DailyCheckIn {
 
 // === CONTENT ===
 model Program {
-  id          String   @id @default(uuid()) @db.Uuid
-  title       String   @db.VarChar(255)
-  description String?  @db.Text
-  category    String   @db.VarChar(50) // gym, running, weight_loss, etc.
-  level       String   @db.VarChar(20) // iniciante, intermediario, avancado
-  durationWeeks Int    @default(4)
-  daysPerWeek  Int     @default(3)
-  featured    Boolean  @default(false)
-  authorId    String?  @db.Uuid
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id            String   @id @default(uuid()) @db.Uuid
+  title         String   @db.VarChar(255)
+  description   String?  @db.Text
+  category      String   @db.VarChar(50) // gym, running, weight_loss, etc.
+  level         String   @db.VarChar(20) // iniciante, intermediario, avancado
+  durationWeeks Int      @default(4)
+  daysPerWeek   Int      @default(3)
+  featured      Boolean  @default(false)
+  authorId      String?  @db.Uuid
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   author    User?             @relation(fields: [authorId], references: [id], onDelete: SetNull)
   exercises ProgramExercise[]
@@ -362,16 +374,16 @@ model Program {
 }
 
 model ProgramExercise {
-  id        String @id @default(uuid()) @db.Uuid
-  programId String @db.Uuid
+  id        String  @id @default(uuid()) @db.Uuid
+  programId String  @db.Uuid
   week      Int
   day       Int
-  name      String @db.VarChar(255)
+  name      String  @db.VarChar(255)
   sets      String? @db.VarChar(10)
   reps      String? @db.VarChar(10)
   duration  String? @db.VarChar(20) // for cardio: "20min", "5km"
   notes     String? @db.Text
-  order     Int    @default(0)
+  order     Int     @default(0)
 
   program Program @relation(fields: [programId], references: [id], onDelete: Cascade)
 
@@ -387,7 +399,7 @@ model Achievement {
   description String @db.Text
   icon        String @db.VarChar(50)
   category    String @db.VarChar(50) // workouts, distance, streak, social
-  criteria    Json   // { "type": "total_workouts", "value": 1 }
+  criteria    Json // { "type": "total_workouts", "value": 1 }
   xpReward    Int    @default(10)
 
   userAchievements UserAchievement[]
@@ -427,11 +439,11 @@ model Challenge {
 }
 
 model ChallengeParticipant {
-  id          String   @id @default(uuid()) @db.Uuid
-  challengeId String   @db.Uuid
-  userId      String   @db.Uuid
-  currentValue Float   @default(0)
-  joinedAt    DateTime @default(now())
+  id           String   @id @default(uuid()) @db.Uuid
+  challengeId  String   @db.Uuid
+  userId       String   @db.Uuid
+  currentValue Float    @default(0)
+  joinedAt     DateTime @default(now())
 
   challenge Challenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -445,11 +457,11 @@ model SocialPost {
   userId    String   @db.Uuid
   text      String?  @db.Text
   workoutId String?  @db.Uuid
-  imageUrl  String?  @db.VarChar(500)
+  imageUrl  String?  @db.Text
   createdAt DateTime @default(now())
 
-  user   User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  likes  SocialLike[]
+  user     User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  likes    SocialLike[]
   comments SocialComment[]
 
   @@index([userId, createdAt])
@@ -457,9 +469,9 @@ model SocialPost {
 }
 
 model SocialLike {
-  id      String   @id @default(uuid()) @db.Uuid
-  postId  String   @db.Uuid
-  userId  String   @db.Uuid
+  id        String   @id @default(uuid()) @db.Uuid
+  postId    String   @db.Uuid
+  userId    String   @db.Uuid
   createdAt DateTime @default(now())
 
   post SocialPost @relation(fields: [postId], references: [id], onDelete: Cascade)
@@ -474,6 +486,7 @@ model SocialComment {
   postId    String   @db.Uuid
   userId    String   @db.Uuid
   text      String   @db.Text
+  imageUrl  String?  @db.Text
   createdAt DateTime @default(now())
 
   post SocialPost @relation(fields: [postId], references: [id], onDelete: Cascade)
@@ -484,12 +497,12 @@ model SocialComment {
 }
 
 model Friendship {
-  id         String   @id @default(uuid()) @db.Uuid
-  requesterId String  @db.Uuid
-  addresseeId String  @db.Uuid
-  status     String   @default("pending") @db.VarChar(20) // pending, accepted, blocked
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id          String   @id @default(uuid()) @db.Uuid
+  requesterId String   @db.Uuid
+  addresseeId String   @db.Uuid
+  status      String   @default("pending") @db.VarChar(20) // pending, accepted, blocked
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   requester User @relation("Requester", fields: [requesterId], references: [id], onDelete: Cascade)
   addressee User @relation("Addressee", fields: [addresseeId], references: [id], onDelete: Cascade)
@@ -501,20 +514,20 @@ model Friendship {
 
 // === NUTRITION ===
 model FoodItem {
-  id          String @id @default(uuid()) @db.Uuid
-  name        String @db.VarChar(255)
-  brand       String? @db.VarChar(255)
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @db.VarChar(255)
+  brand       String?  @db.VarChar(255)
   servingSize Float
-  servingUnit String @db.VarChar(20) // g, ml, unit
+  servingUnit String   @db.VarChar(20) // g, ml, unit
   calories    Float
   proteinG    Float
   carbsG      Float
   fatG        Float
   fiberG      Float?
   sodiumMg    Float?
-  category    String @db.VarChar(50) // fruit, vegetable, meat, dairy, grain, etc.
-  isPublic    Boolean @default(true)
-  userId      String? @db.Uuid
+  category    String   @db.VarChar(50) // fruit, vegetable, meat, dairy, grain, etc.
+  isPublic    Boolean  @default(true)
+  userId      String?  @db.Uuid
   createdAt   DateTime @default(now())
 
   user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -534,7 +547,7 @@ model MealLog {
   notes     String?  @db.Text
   createdAt DateTime @default(now())
 
-  user   User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   foods  MealFood[]
   totals MealTotals?
 
@@ -543,10 +556,10 @@ model MealLog {
 }
 
 model MealFood {
-  id       String @id @default(uuid()) @db.Uuid
-  mealId   String @db.Uuid
-  foodId   String @db.Uuid
-  amount   Float  @default(1) // multiplier of servingSize
+  id        String   @id @default(uuid()) @db.Uuid
+  mealId    String   @db.Uuid
+  foodId    String   @db.Uuid
+  amount    Float    @default(1) // multiplier of servingSize
   createdAt DateTime @default(now())
 
   meal MealLog  @relation(fields: [mealId], references: [id], onDelete: Cascade)
@@ -557,31 +570,32 @@ model MealFood {
 }
 
 model MealTotals {
-  id         String @id @default(uuid()) @db.Uuid
-  mealId     String @unique @db.Uuid
-  calories   Float  @default(0)
-  proteinG   Float  @default(0)
-  carbsG     Float  @default(0)
-  fatG       Float  @default(0)
-  fiberG     Float  @default(0)
+  id       String @id @default(uuid()) @db.Uuid
+  mealId   String @unique @db.Uuid
+  calories Float  @default(0)
+  proteinG Float  @default(0)
+  carbsG   Float  @default(0)
+  fatG     Float  @default(0)
+  fiberG   Float  @default(0)
 
   meal MealLog @relation(fields: [mealId], references: [id], onDelete: Cascade)
+
   @@map("meal_totals")
 }
 
 model DietPlan {
-  id          String   @id @default(uuid()) @db.Uuid
-  userId      String   @db.Uuid
-  title       String   @db.VarChar(255)
-  description String?  @db.Text
+  id            String    @id @default(uuid()) @db.Uuid
+  userId        String    @db.Uuid
+  title         String    @db.VarChar(255)
+  description   String?   @db.Text
   dailyCalories Float?
-  proteinGoal  Float?
-  carbsGoal    Float?
-  fatGoal      Float?
-  startDate   DateTime @default(now())
-  endDate     DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  proteinGoal   Float?
+  carbsGoal     Float?
+  fatGoal       Float?
+  startDate     DateTime  @default(now())
+  endDate       DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -611,13 +625,13 @@ model Appointment {
 }
 
 model AppointmentSlot {
-  id          String   @id @default(uuid()) @db.Uuid
-  personalId  String   @db.Uuid
-  date        DateTime
-  startTime   String   @db.VarChar(5) // "08:00"
-  endTime     String   @db.VarChar(5) // "09:00"
-  available   Boolean  @default(true)
-  createdAt   DateTime @default(now())
+  id         String   @id @default(uuid()) @db.Uuid
+  personalId String   @db.Uuid
+  date       DateTime
+  startTime  String   @db.VarChar(5) // "08:00"
+  endTime    String   @db.VarChar(5) // "09:00"
+  available  Boolean  @default(true)
+  createdAt  DateTime @default(now())
 
   personal User @relation(fields: [personalId], references: [id], onDelete: Cascade)
 

@@ -36,6 +36,7 @@ class Api {
   static const _navigationKey = 'wegym_navigation_state';
   static const _previewChallengesKey = 'wegym_preview_joined_challenges';
   static const _previewCustomChallengesKey = 'wegym_preview_custom_challenges';
+  static const _previewClassesKey = 'wegym_preview_classes';
   static const _custom = String.fromEnvironment('API_BASE_URL');
   @visibleForTesting
   static ApiRequestHandler? requestHandler;
@@ -159,6 +160,24 @@ class Api {
     value: jsonEncode(challenges),
   );
 
+  static Future<List<Map<String, dynamic>>> previewClasses() async {
+    final value = await _store.read(key: _previewClassesKey);
+    if (value == null) return [];
+    try {
+      final decoded = jsonDecode(value);
+      return decoded is List
+          ? decoded.whereType<Map>().map((row) {
+              return row.map((key, value) => MapEntry(key.toString(), value));
+            }).toList()
+          : [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  static Future<void> savePreviewClasses(List<Map<String, dynamic>> classes) =>
+      _store.write(key: _previewClassesKey, value: jsonEncode(classes));
+
   static Future<void> clearPreviewState() async {
     _demoSession = false;
     await Future.wait([
@@ -168,6 +187,7 @@ class Api {
       _store.delete(key: _navigationKey),
       _store.delete(key: _previewChallengesKey),
       _store.delete(key: _previewCustomChallengesKey),
+      _store.delete(key: _previewClassesKey),
     ]);
   }
 
@@ -380,9 +400,14 @@ class Api {
     return OfflineSyncResult(synced: synced, failed: failed);
   }
 
-  static Future<List<Map<String, dynamic>>> sessions() async {
-    final rows =
-        (await request('/api/workout-sessions?limit=8') as Map)['data'];
+  static Future<List<Map<String, dynamic>>> sessions({
+    String? athleteId,
+  }) async {
+    final query = <String, String>{'limit': '50'};
+    if (athleteId != null && athleteId.isNotEmpty)
+      query['athleteId'] = athleteId;
+    final uri = Uri(path: '/api/workout-sessions', queryParameters: query);
+    final rows = (await request(uri.toString()) as Map)['data'];
     if (rows is! List) return [];
     return rows
         .whereType<Map>()
@@ -411,6 +436,24 @@ class Api {
         .whereType<Map>()
         .map((row) => row.cast<String, dynamic>())
         .toList();
+  }
+
+  static Future<List<Map<String, dynamic>>> availableAthletes() async {
+    final response = await request('/api/athletes/link') as Map;
+    final rows = response['data'];
+    if (rows is! List) return [];
+    return rows
+        .whereType<Map>()
+        .map((row) => row.cast<String, dynamic>())
+        .toList();
+  }
+
+  static Future<void> linkAthlete(String athleteId) async {
+    await request(
+      '/api/athletes/link',
+      method: 'POST',
+      body: {'athleteId': athleteId},
+    );
   }
 
   static Future<Map<String, dynamic>> feed() async =>
@@ -448,11 +491,13 @@ class Api {
   static Future<SessionSaveOutcome> saveSession(
     int seconds, {
     List<Map<String, dynamic>>? exercises,
+    String? athleteId,
   }) async {
     final body = <String, dynamic>{
       'modality': 'musculacao',
       'durationSec': seconds,
       'exercises': exercises ?? [],
+      if (athleteId != null && athleteId.isNotEmpty) 'athleteId': athleteId,
     };
     try {
       await request('/api/workout-sessions', method: 'POST', body: body);

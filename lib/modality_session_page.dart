@@ -14,11 +14,13 @@ class ModalitySessionPage extends StatefulWidget {
     this.preview = false,
     this.onSaved,
     this.initialModality = 'swimming',
+    this.athleteId,
   });
 
   final bool preview;
   final VoidCallback? onSaved;
   final String initialModality;
+  final String? athleteId;
 
   @override
   State<ModalitySessionPage> createState() => _ModalitySessionPageState();
@@ -67,6 +69,7 @@ class _ModalitySessionPageState extends State<ModalitySessionPage> {
             preview: widget.preview,
             onSaved: widget.onSaved,
             initialActivity: gpsActivity,
+            athleteId: widget.athleteId,
           ),
         ),
       );
@@ -126,6 +129,7 @@ class _ModalitySessionPageState extends State<ModalitySessionPage> {
             'Sess\u00e3o demonstrativa conclu\u00edda. Nenhum dado foi enviado.';
       } else {
         await Api.post('/api/workout-sessions', {
+          if (widget.athleteId != null) 'athleteId': widget.athleteId,
           'modality': _modality,
           'durationSec': _seconds,
           if (_modality == 'swimming')

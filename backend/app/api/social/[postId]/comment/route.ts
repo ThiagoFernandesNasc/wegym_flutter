@@ -16,7 +16,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ pos
     const parsed = socialCommentSchema.safeParse(body);
     if (!parsed.success) throw new ValidationError('Comentário inválido', parsed.error.issues);
 
-    const comment = await socialService.addComment(postId, session.user.id, parsed.data.text);
+    const comment = await socialService.addComment(postId, session.user.id, parsed.data);
     return created(comment);
   } catch (error) {
     return handleError(error);

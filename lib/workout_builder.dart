@@ -38,10 +38,12 @@ class WorkoutBuilderPage extends StatefulWidget {
     required this.onStartSession,
     this.onStartPlannedSession,
     this.onSessionSaved,
+    this.onAthleteSelected,
   });
   final VoidCallback onStartSession;
   final ValueChanged<List<Map<String, dynamic>>>? onStartPlannedSession;
   final VoidCallback? onSessionSaved;
+  final ValueChanged<String?>? onAthleteSelected;
   @override
   State<WorkoutBuilderPage> createState() => _WorkoutBuilderPageState();
 }
@@ -128,8 +130,9 @@ class _WorkoutBuilderPageState extends State<WorkoutBuilderPage> {
     await Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
         builder: (_) => ModalitySessionPage(
-          preview: const bool.fromEnvironment('PREVIEW_DASHBOARD'),
+          preview: Api.isDemoSession,
           onSaved: widget.onSessionSaved,
+          athleteId: _isPersonal ? _athleteId : null,
         ),
       ),
     );
@@ -208,7 +211,7 @@ class _WorkoutBuilderPageState extends State<WorkoutBuilderPage> {
       final result = await Api.generateAIWorkout(
         message: input[0],
         level: input[1],
-        previewDemo: const bool.fromEnvironment('PREVIEW_DASHBOARD'),
+        previewDemo: Api.isDemoSession,
       );
       final workout = result['workoutData'];
       final rows = workout is Map ? workout['exercises'] : null;
@@ -235,7 +238,7 @@ class _WorkoutBuilderPageState extends State<WorkoutBuilderPage> {
     } catch (error) {
       if (!mounted) return;
       setState(
-        () => _notice = const bool.fromEnvironment('PREVIEW_DASHBOARD')
+        () => _notice = Api.isDemoSession
             ? 'Não foi possível consultar o Gemini. Confira a chave GEMINI_API_KEY no backend/.env e tente novamente.'
             : 'Não foi possível gerar o treino: $error',
       );
@@ -245,7 +248,7 @@ class _WorkoutBuilderPageState extends State<WorkoutBuilderPage> {
   }
 
   Future<void> _initializePlans() async {
-    if (const bool.fromEnvironment('PREVIEW_DASHBOARD')) {
+    if (Api.isDemoSession) {
       final role = await Api.previewRole();
       _isPersonal = role == 'personal';
       if (_isPersonal) {
@@ -274,6 +277,7 @@ class _WorkoutBuilderPageState extends State<WorkoutBuilderPage> {
         if (_athletes.isNotEmpty) {
           _athleteId = _athletes.first['id']?.toString();
           _athleteName = _athletes.first['name']?.toString() ?? '';
+          widget.onAthleteSelected?.call(_athleteId);
         }
       } else {
         final athlete = profile['athlete'];
@@ -291,7 +295,7 @@ class _WorkoutBuilderPageState extends State<WorkoutBuilderPage> {
   Future<void> _selectAthlete(Map<String, dynamic> athlete) async {
     final id = athlete['id']?.toString();
     if (id == null || id == _athleteId) return;
-    if (const bool.fromEnvironment('PREVIEW_DASHBOARD')) {
+    if (Api.isDemoSession) {
       final currentId = _athleteId;
       if (currentId != null) {
         _previewPlansByAthlete[currentId] = (
@@ -304,6 +308,7 @@ class _WorkoutBuilderPageState extends State<WorkoutBuilderPage> {
       setState(() {
         _athleteId = id;
         _athleteName = athlete['name']?.toString() ?? 'Atleta';
+        widget.onAthleteSelected?.call(_athleteId);
         _split = saved?.split ?? 'PPL';
         _trainingDays
           ..clear()
@@ -322,6 +327,7 @@ class _WorkoutBuilderPageState extends State<WorkoutBuilderPage> {
     setState(() {
       _athleteId = id;
       _athleteName = athlete['name']?.toString() ?? '';
+      widget.onAthleteSelected?.call(_athleteId);
       _loadingPlan = true;
       _plans.clear();
       _savedPlanIds.clear();
@@ -500,7 +506,7 @@ class _WorkoutBuilderPageState extends State<WorkoutBuilderPage> {
   }
 
   Future<void> _savePlan() async {
-    final preview = const bool.fromEnvironment('PREVIEW_DASHBOARD');
+    final preview = Api.isDemoSession;
     if (_trainingDays.isEmpty || (!preview && _athleteId == null)) {
       setState(
         () => _notice = _isPersonal
@@ -647,7 +653,7 @@ class _WorkoutBuilderPageState extends State<WorkoutBuilderPage> {
           runSpacing: 8,
           children: [
             OutlinedButton.icon(
-              onPressed: _isPersonal ? null : _openModalitySession,
+              onPressed: _openModalitySession,
               icon: const Icon(Icons.pool_outlined, size: 16),
               label: const Text('OUTRAS MODALIDADES'),
             ),
@@ -665,8 +671,7 @@ class _WorkoutBuilderPageState extends State<WorkoutBuilderPage> {
               onPressed:
                   _saving ||
                       _loadingPlan ||
-                      (_athleteId == null &&
-                          !const bool.fromEnvironment('PREVIEW_DASHBOARD'))
+                      (_athleteId == null && !Api.isDemoSession)
                   ? null
                   : _savePlan,
               icon: _saving
@@ -1608,12 +1613,13 @@ class _WorkoutBuilderPageState extends State<WorkoutBuilderPage> {
 
 /// Owns an active session independently from the currently selected page.
 class WorkoutSessionController {
-  WorkoutSessionController({this.plannedExercises}) {
+  WorkoutSessionController({this.plannedExercises, this.athleteId}) {
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (running && !saved) elapsed.value++;
     });
   }
   final List<Map<String, dynamic>>? plannedExercises;
+  final String? athleteId;
   final Map<String, List<Map<String, dynamic>>> performedSets = {};
   final DateTime startedAt = DateTime.now();
   final ValueNotifier<int> elapsed = ValueNotifier<int>(0);
@@ -1995,6 +2001,7 @@ class _WorkoutSessionPageState extends State<WorkoutSessionPage> {
         final outcome = await Api.saveSession(
           _session.elapsed.value,
           exercises: exercises,
+          athleteId: _session.athleteId,
         );
         savedOffline = outcome == SessionSaveOutcome.queuedOffline;
         if (!Api.hasInjectedRequestHandler) {

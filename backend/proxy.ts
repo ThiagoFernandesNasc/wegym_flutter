@@ -30,6 +30,9 @@ export default withAuth({
       if (path.startsWith('/api/sentry-example')) return false;
       if (path.startsWith('/api/auth')) return true;
       if (path.startsWith('/api/webhooks')) return true;
+      // Registration validates the trainer credential before an account exists.
+      // The route applies its own rate limit and does not expose user data.
+      if (path === '/api/cref/validate' && req.method === 'POST') return true;
       if (path === '/api/health') return true;
 
       return !!token;

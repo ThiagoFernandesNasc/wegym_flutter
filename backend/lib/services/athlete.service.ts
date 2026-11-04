@@ -80,6 +80,7 @@ export const athleteService = {
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
       select: {
         id: true,
+        userId: true,
         name: true,
         experienceLevel: true,
         phone: true,

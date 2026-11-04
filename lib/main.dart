@@ -504,24 +504,23 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
           'userType': _userType,
           'name': _name.text.trim(),
           if (_userType == 'personal') 'cref': _credential.text.trim(),
-          if (_userType == 'atleta') ...{
+          if (_userType == 'atleta')
             'cpf': _credential.text.replaceAll(RegExp(r'\D'), ''),
-            'cep': _cep.text.trim(),
-            'city': _city.text.trim(),
-            'state': _state.text.trim().toUpperCase(),
-            'age': int.parse(_age.text),
-            'sex': _sex,
-            'height': _heightCentimeters(_height.text)!,
-            'weight': double.parse(_weight.text.replaceAll(',', '.')),
-            'experienceLevel': _experienceLevel,
-            'injury': _injury.text.trim().isEmpty ? null : _injury.text.trim(),
-            'healthIssues': _healthIssues.text.trim().isEmpty
-                ? null
-                : _healthIssues.text.trim(),
-            'medications': _medications.text.trim().isEmpty
-                ? null
-                : _medications.text.trim(),
-          },
+          'cep': _cep.text.trim(),
+          'city': _city.text.trim(),
+          'state': _state.text.trim().toUpperCase(),
+          'age': int.parse(_age.text),
+          'sex': _sex,
+          'height': _heightCentimeters(_height.text)!,
+          'weight': double.parse(_weight.text.replaceAll(',', '.')),
+          'experienceLevel': _experienceLevel,
+          'injury': _injury.text.trim().isEmpty ? null : _injury.text.trim(),
+          'healthIssues': _healthIssues.text.trim().isEmpty
+              ? null
+              : _healthIssues.text.trim(),
+          'medications': _medications.text.trim().isEmpty
+              ? null
+              : _medications.text.trim(),
           'termsAccepted': _acceptTerms,
           'privacyAccepted': _acceptPrivacy,
           'dataConsentAccepted': _acceptData,
@@ -617,13 +616,17 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
     bool externalLabel = false,
     String? hint,
     ValueChanged<String>? onChanged,
+    ValueChanged<String>? onFieldSubmitted,
+    TextInputAction? textInputAction,
     Key? key,
     String? Function(String?)? validator,
   }) => TextFormField(
     key: key,
     controller: controller,
     onChanged: onChanged,
+    onFieldSubmitted: onFieldSubmitted,
     keyboardType: keyboard,
+    textInputAction: textInputAction,
     obscureText: secret && !_showPassword,
     style: const TextStyle(color: lightText),
     decoration: InputDecoration(
@@ -726,6 +729,8 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
           children: [
             TextField(
               controller: token,
+              textInputAction: TextInputAction.next,
+              onSubmitted: (_) => FocusScope.of(ctx).nextFocus(),
               decoration: const InputDecoration(
                 labelText: 'Token recebido no e-mail',
               ),
@@ -733,6 +738,9 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
             TextField(
               controller: password,
               obscureText: true,
+              textInputAction: TextInputAction.done,
+              onSubmitted: (_) =>
+                  Navigator.pop(ctx, [token.text.trim(), password.text]),
               decoration: const InputDecoration(
                 labelText: 'Nova senha (mínimo 8 caracteres)',
               ),
@@ -1057,14 +1065,12 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                   ),
                 ),
               ],
-              if (_userType == 'personal' && _crefVerified) ...[
+              if (_userType == 'personal' && _crefVerified)
                 const ListTile(
                   dense: true,
                   leading: Icon(Icons.check_circle, color: positive),
                   title: Text('CREF validado'),
                 ),
-                _field(_name, 'Nome', key: const ValueKey('signup-name')),
-              ],
               if (_userType == 'atleta') ...[
                 _field(_name, 'Nome', key: const ValueKey('signup-name')),
                 const SizedBox(height: 10),
@@ -1252,9 +1258,6 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                 const SizedBox(height: 10),
                 _field(_medications, 'Medicamentos (opcional)'),
               ],
-              if (_userType == 'personal' && _crefVerified) ...[
-                const SizedBox(height: 10),
-              ],
             ],
             if (!_register || _userType == 'atleta' || _crefVerified) ...[
               if (!_register)
@@ -1267,6 +1270,8 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                 'E-mail',
                 key: _register ? const ValueKey('signup-email') : null,
                 keyboard: TextInputType.emailAddress,
+                textInputAction: TextInputAction.next,
+                onFieldSubmitted: (_) => FocusScope.of(context).nextFocus(),
                 externalLabel: !_register,
                 hint: _register ? null : 'ex.: nome@atleta.com ou #WG-9842',
               ),
@@ -1277,6 +1282,11 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                 'Senha',
                 key: _register ? const ValueKey('signup-password') : null,
                 secret: true,
+                textInputAction: _register
+                    ? TextInputAction.next
+                    : TextInputAction.done,
+                onFieldSubmitted: (_) =>
+                    _register ? FocusScope.of(context).nextFocus() : _submit(),
                 externalLabel: !_register,
                 hint: _register
                     ? null
@@ -1289,6 +1299,8 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                   'Confirmar senha',
                   key: const ValueKey('signup-confirm-password'),
                   secret: true,
+                  textInputAction: TextInputAction.done,
+                  onFieldSubmitted: (_) => _submit(),
                   validator: (value) => value == _password.text
                       ? null
                       : 'As senhas n\u00e3o coincidem.',
@@ -2384,6 +2396,7 @@ class _AppShellState extends State<AppShell> {
   late final AppLifecycleListener _appLifecycleListener;
   WorkoutSessionController? _sessionController;
   String _dashboardGpsActivity = 'Corrida';
+  String? _selectedAthleteId;
   String _dashboardModality = 'aerobic';
   final _globalSearch = TextEditingController();
   late Future<List<dynamic>> _data = _load();
@@ -2485,7 +2498,6 @@ class _AppShellState extends State<AppShell> {
       };
       if (index == null || !validPages.contains(index)) return;
       if (index == 7 && _role != 'personal') return;
-      if (index == 18 && _role == 'personal') return;
       setState(() {
         _index = index;
         final restoredModality = saved['modality']?.toString();
@@ -2622,9 +2634,7 @@ class _AppShellState extends State<AppShell> {
   );
   Map<int, String> get _visibleModules => Map.fromEntries(
     appModules.entries.where(
-      (entry) =>
-          (entry.key != 7 || _role == 'personal') &&
-          (entry.key != 18 || _role != 'personal'),
+      (entry) => (entry.key != 7 || _role == 'personal'),
     ),
   );
 
@@ -2753,6 +2763,12 @@ class _AppShellState extends State<AppShell> {
     final profile = await Api.profile();
     _setRole(profile['role']);
     if (profile['role'] == 'personal') {
+      final athletes = await Api.athletes().catchError(
+        (_) => <Map<String, dynamic>>[],
+      );
+      _selectedAthleteId ??= athletes.isEmpty
+          ? null
+          : athletes.first['id']?.toString();
       final feed = Api.feed().catchError((_) => <String, dynamic>{'posts': []});
       final goals = Api.get(
         '/api/goals?status=active',
@@ -2841,6 +2857,7 @@ class _AppShellState extends State<AppShell> {
       current?.dispose();
       _sessionController = WorkoutSessionController(
         plannedExercises: exercises,
+        athleteId: _role == 'personal' ? _selectedAthleteId : null,
       );
       _sessionRevision++;
     }
@@ -2874,14 +2891,6 @@ class _AppShellState extends State<AppShell> {
   }
 
   void _navigateTo(int index) {
-    if (index == 18 && _role == 'personal') {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('A atividade GPS está disponível para atletas.'),
-        ),
-      );
-      return;
-    }
     if (index == 7 && _role != 'personal') {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -3091,10 +3100,16 @@ class _AppShellState extends State<AppShell> {
                           profile['email'] ??
                           'WeGYM')
                       .toString();
+              final locationProfile = profile['role'] == 'personal'
+                  ? personal
+                  : athlete;
               final location =
                   [
-                        athlete['city']?.toString().trim(),
-                        athlete['state']?.toString().trim().toUpperCase(),
+                        locationProfile['city']?.toString().trim(),
+                        locationProfile['state']
+                            ?.toString()
+                            .trim()
+                            .toUpperCase(),
                       ]
                       .whereType<String>()
                       .where((part) => part.isNotEmpty)
@@ -3184,9 +3199,7 @@ class _AppShellState extends State<AppShell> {
   );
   Widget _navigationDrawer() {
     final routes = _DesktopSidebar.routes.where(
-      (route) =>
-          (route.page != 7 || _role == 'personal') &&
-          (route.page != 18 || _role != 'personal'),
+      (route) => (route.page != 7 || _role == 'personal'),
     );
     return SafeArea(
       child: Column(
@@ -3297,12 +3310,14 @@ class _AppShellState extends State<AppShell> {
         onStartSession: _startWorkout,
         onStartPlannedSession: _startWorkoutWithExercises,
         onSessionSaved: () => setState(() => _revision++),
+        onAthleteSelected: (id) => _selectedAthleteId = id,
       );
     }
     if (_index == 18) {
       return GpsSessionPage(
         preview: Api.isDemoSession,
         initialActivity: _dashboardGpsActivity,
+        athleteId: _role == 'personal' ? _selectedAthleteId : null,
         onSaved: () => setState(() => _revision++),
         onBack: _goBack,
       );
@@ -3311,6 +3326,7 @@ class _AppShellState extends State<AppShell> {
       return ModalitySessionPage(
         preview: Api.isDemoSession,
         initialModality: _dashboardModality,
+        athleteId: _role == 'personal' ? _selectedAthleteId : null,
         onSaved: () => setState(() => _revision++),
       );
     }
@@ -3553,11 +3569,7 @@ class _DesktopSidebar extends StatelessWidget {
                 key: const ValueKey('desktop-sidebar-scroll'),
                 padding: const EdgeInsets.symmetric(horizontal: 8),
                 children: routes
-                    .where(
-                      (route) =>
-                          (route.page != 7 || personalAccount) &&
-                          (route.page != 18 || !personalAccount),
-                    )
+                    .where((route) => (route.page != 7 || personalAccount))
                     .map((route) {
                       final selected = route.page == selectedIndex;
                       return Material(
@@ -3886,7 +3898,7 @@ class SessionsCard extends StatelessWidget {
                     contentPadding: EdgeInsets.zero,
                     leading: const Icon(Icons.fitness_center, color: accent),
                     title: Text(
-                      HistoryPage._sessionModality(
+                      _HistoryPageState._sessionModality(
                         row['modality'],
                       ).toUpperCase(),
                     ),
@@ -3965,237 +3977,337 @@ class GoalCard extends StatelessWidget {
   }
 }
 
-class HistoryPage extends StatelessWidget {
+class HistoryPage extends StatefulWidget {
   const HistoryPage({super.key, this.preview = false});
   final bool preview;
+  @override
+  State<HistoryPage> createState() => _HistoryPageState();
+}
+
+class _HistoryPageState extends State<HistoryPage> {
+  bool _loading = true;
+  bool _isPersonal = false;
+  String? _athleteId;
+  String _athleteName = '';
+  String? _error;
+  List<Map<String, dynamic>> _athletes = [];
+  List<Map<String, dynamic>> _sessions = [];
 
   @override
-  Widget build(
-    BuildContext context,
-  ) => FutureBuilder<List<Map<String, dynamic>>>(
-    future: preview
-        ? Future.value([
-            {
-              'id': 'h1',
-              'modality': 'musculacao',
-              'durationSec': 3600,
-              'completedAt': 'Hoje',
-            },
-            {
-              'id': 'h2',
-              'modality': 'corrida',
-              'durationSec': 2400,
-              'completedAt': 'Ontem',
-            },
-            {
-              'id': 'h3',
-              'modality': 'musculacao',
-              'durationSec': 3000,
-              'completedAt': 'Há 2 dias',
-            },
-          ])
-        : Api.sessions(),
-    builder: (context, snapshot) {
-      if (snapshot.connectionState != ConnectionState.done) {
-        return const Center(child: CircularProgressIndicator(color: accent));
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      if (widget.preview) {
+        _isPersonal = await Api.previewRole() == 'personal';
+        if (_isPersonal) {
+          _athletes = [
+            {'id': 'preview-athlete-mariana', 'name': 'Mariana Costa'},
+            {'id': 'preview-athlete-pedro', 'name': 'Pedro Almeida'},
+          ];
+          _athleteId ??= _athletes.first['id'] as String;
+          _athleteName =
+              _athletes.firstWhere((a) => a['id'] == _athleteId)['name']
+                  as String;
+        }
+        _sessions = [
+          {
+            'id': 'h1',
+            'modality': 'musculacao',
+            'durationSec': 3600,
+            'completedAt': 'Hoje',
+          },
+          {
+            'id': 'h2',
+            'modality': 'corrida',
+            'durationSec': 2400,
+            'completedAt': 'Ontem',
+          },
+          {
+            'id': 'h3',
+            'modality': 'musculacao',
+            'durationSec': 3000,
+            'completedAt': 'H\u00e1 2 dias',
+          },
+        ];
+      } else {
+        final profile = await Api.profile();
+        _isPersonal = profile['role'] == 'personal';
+        if (_isPersonal) {
+          _athletes = await Api.athletes();
+          if (_athletes.isEmpty) {
+            _athleteId = null;
+            _sessions = [];
+          } else {
+            if (!_athletes.any((a) => a['id']?.toString() == _athleteId))
+              _athleteId = _athletes.first['id']?.toString();
+            final selected = _athletes.firstWhere(
+              (a) => a['id']?.toString() == _athleteId,
+            );
+            _athleteName = selected['name']?.toString() ?? 'Atleta';
+            _sessions = await Api.sessions(athleteId: _athleteId);
+          }
+        } else {
+          _sessions = await Api.sessions();
+        }
       }
-      if (snapshot.hasError) {
-        return Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
+    } catch (error) {
+      _error = error.toString();
+    }
+    if (mounted) setState(() => _loading = false);
+  }
+
+  Future<void> _selectAthlete(String? id) async {
+    if (id == null || id == _athleteId) return;
+    setState(() {
+      _athleteId = id;
+      _athleteName =
+          _athletes
+              .firstWhere((a) => a['id']?.toString() == id)['name']
+              ?.toString() ??
+          'Atleta';
+      _loading = true;
+    });
+    if (!widget.preview) {
+      try {
+        _sessions = await Api.sessions(athleteId: id);
+        _error = null;
+      } catch (error) {
+        _error = error.toString();
+      }
+    }
+    if (mounted) setState(() => _loading = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading)
+      return const Center(child: CircularProgressIndicator(color: accent));
+    if (_error != null)
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(
+            'N\u00e3o foi poss\u00edvel carregar o hist\u00f3rico: $_error',
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: softText),
+          ),
+        ),
+      );
+    final totalSeconds = _sessions.fold<int>(
+      0,
+      (sum, item) => sum + amount(item['durationSec']).round(),
+    );
+    final lastSession = _sessions.isEmpty
+        ? '\u2014'
+        : _sessionDate(_sessions.first['completedAt']);
+    return ListView(
+      padding: const EdgeInsets.all(20),
+      children: [
+        Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1280),
             child: Column(
-              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Icon(
-                  Icons.cloud_off_outlined,
-                  color: stitchPeach,
-                  size: 34,
+                const StitchPageHeading(
+                  eyebrow: 'WEGYM PERFORMANCE OS  \u2022  ATIVIDADE',
+                  title: 'Hist\u00f3rico de treinos',
+                  subtitle:
+                      'Acompanhe sess\u00f5es conclu\u00eddas e a consist\u00eancia da rotina.',
                 ),
-                const SizedBox(height: 12),
-                Text(
-                  'Não foi possível carregar o histórico: ${snapshot.error}',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: softText),
+                if (_isPersonal) ...[
+                  const SizedBox(height: 12),
+                  StitchSection(
+                    title: 'ATLETA',
+                    icon: Icons.person_search,
+                    child: _athletes.isEmpty
+                        ? const Text(
+                            'Vincule um aluno para consultar o hist\u00f3rico de atividades.',
+                            style: TextStyle(color: softText),
+                          )
+                        : DropdownButtonFormField<String>(
+                            value: _athleteId,
+                            decoration: const InputDecoration(
+                              labelText: 'Consultar hist\u00f3rico de',
+                            ),
+                            items: _athletes
+                                .map(
+                                  (a) => DropdownMenuItem(
+                                    value: a['id']?.toString(),
+                                    child: Text(
+                                      a['name']?.toString() ?? 'Atleta',
+                                    ),
+                                  ),
+                                )
+                                .toList(),
+                            onChanged: _selectAthlete,
+                          ),
+                  ),
+                ],
+                if (_isPersonal && _athleteId != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      'Exibindo atividades de $_athleteName.',
+                      style: const TextStyle(color: stitchMuted, fontSize: 11),
+                    ),
+                  ),
+                const SizedBox(height: 14),
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final width = constraints.maxWidth < 420
+                        ? constraints.maxWidth
+                        : constraints.maxWidth < 700
+                        ? (constraints.maxWidth - 10) / 2
+                        : 220.0;
+                    return Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: [
+                        SizedBox(
+                          width: width,
+                          child: StitchMetric(
+                            label: 'SESS\u00d5ES REGISTRADAS',
+                            value: _sessions.length.toString(),
+                            icon: Icons.fitness_center,
+                          ),
+                        ),
+                        SizedBox(
+                          width: width,
+                          child: StitchMetric(
+                            label: 'TEMPO DE TREINO',
+                            value: duration(totalSeconds.toDouble()),
+                            icon: Icons.timer_outlined,
+                            tint: stitchGreen,
+                          ),
+                        ),
+                        SizedBox(
+                          width: width,
+                          child: StitchMetric(
+                            label: 'SESS\u00c3O MAIS RECENTE',
+                            value: lastSession,
+                            icon: Icons.event,
+                            tint: stitchBlue,
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+                const SizedBox(height: 14),
+                StitchSection(
+                  title: 'Sess\u00f5es recentes',
+                  icon: Icons.history,
+                  child: _sessions.isEmpty
+                      ? Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 22),
+                          child: Center(
+                            child: Text(
+                              _isPersonal && _athleteId == null
+                                  ? 'Nenhum aluno vinculado a este Personal.'
+                                  : 'As sess\u00f5es aparecer\u00e3o aqui depois que o atleta concluir um treino.',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(color: softText),
+                            ),
+                          ),
+                        )
+                      : Column(
+                          children: _sessions.map((session) {
+                            final modality = _sessionModality(
+                              session['modality'],
+                            );
+                            return Container(
+                              margin: const EdgeInsets.only(bottom: 8),
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: stitchSurfaceLow,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 38,
+                                    height: 38,
+                                    decoration: BoxDecoration(
+                                      color: stitchOrange.withValues(
+                                        alpha: .14,
+                                      ),
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: const Icon(
+                                      Icons.fitness_center,
+                                      color: stitchOrange,
+                                      size: 18,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          modality,
+                                          style: const TextStyle(
+                                            color: stitchText,
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w800,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          _sessionDate(session['completedAt']),
+                                          style: const TextStyle(
+                                            color: stitchMuted,
+                                            fontSize: 10,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  StitchTag(
+                                    duration(amount(session['durationSec'])),
+                                    color: stitchPeach,
+                                  ),
+                                ],
+                              ),
+                            );
+                          }).toList(),
+                        ),
                 ),
               ],
             ),
           ),
-        );
-      }
-
-      final sessions = snapshot.data ?? const <Map<String, dynamic>>[];
-      final totalSeconds = sessions.fold<int>(
-        0,
-        (sum, item) => sum + amount(item['durationSec']).round(),
-      );
-      final lastSession = sessions.isEmpty
-          ? '—'
-          : _sessionDate(sessions.first['completedAt']);
-      return ListView(
-        padding: const EdgeInsets.all(20),
-        children: [
-          Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 1280),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const StitchPageHeading(
-                    eyebrow: 'WEGYM PERFORMANCE OS  •  ATIVIDADE',
-                    title: 'Histórico de treinos',
-                    subtitle:
-                        'Acompanhe suas sessões concluídas e a consistência da sua rotina.',
-                  ),
-                  const SizedBox(height: 14),
-                  LayoutBuilder(
-                    builder: (context, constraints) {
-                      final width = constraints.maxWidth < 420
-                          ? constraints.maxWidth
-                          : constraints.maxWidth < 700
-                          ? (constraints.maxWidth - 10) / 2
-                          : 220.0;
-                      return Wrap(
-                        spacing: 10,
-                        runSpacing: 10,
-                        children: [
-                          SizedBox(
-                            width: width,
-                            child: StitchMetric(
-                              label: 'SESSÕES REGISTRADAS',
-                              value: sessions.length.toString(),
-                              icon: Icons.fitness_center,
-                            ),
-                          ),
-                          SizedBox(
-                            width: width,
-                            child: StitchMetric(
-                              label: 'TEMPO DE TREINO',
-                              value: duration(totalSeconds.toDouble()),
-                              icon: Icons.timer_outlined,
-                              tint: stitchGreen,
-                            ),
-                          ),
-                          SizedBox(
-                            width: width,
-                            child: StitchMetric(
-                              label: 'SESSÃO MAIS RECENTE',
-                              value: lastSession,
-                              icon: Icons.event,
-                              tint: stitchBlue,
-                            ),
-                          ),
-                        ],
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 14),
-                  StitchSection(
-                    title: 'Sessões recentes',
-                    icon: Icons.history,
-                    child: sessions.isEmpty
-                        ? const Padding(
-                            padding: EdgeInsets.symmetric(vertical: 22),
-                            child: Center(
-                              child: Text(
-                                'Suas sessões aparecerão aqui depois que você concluir um treino.',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(color: softText),
-                              ),
-                            ),
-                          )
-                        : Column(
-                            children: sessions.map((session) {
-                              final modality = _sessionModality(
-                                session['modality'],
-                              );
-                              return Container(
-                                margin: const EdgeInsets.only(bottom: 8),
-                                padding: const EdgeInsets.all(14),
-                                decoration: BoxDecoration(
-                                  color: stitchSurfaceLow,
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Row(
-                                  children: [
-                                    Container(
-                                      width: 38,
-                                      height: 38,
-                                      decoration: BoxDecoration(
-                                        color: stitchOrange.withValues(
-                                          alpha: .14,
-                                        ),
-                                        borderRadius: BorderRadius.circular(10),
-                                      ),
-                                      child: const Icon(
-                                        Icons.fitness_center,
-                                        color: stitchOrange,
-                                        size: 18,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            modality,
-                                            style: const TextStyle(
-                                              color: stitchText,
-                                              fontSize: 13,
-                                              fontWeight: FontWeight.w800,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            _sessionDate(
-                                              session['completedAt'],
-                                            ),
-                                            style: const TextStyle(
-                                              color: stitchMuted,
-                                              fontSize: 10,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    StitchTag(
-                                      duration(amount(session['durationSec'])),
-                                      color: stitchPeach,
-                                    ),
-                                  ],
-                                ),
-                              );
-                            }).toList(),
-                          ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      );
-    },
-  );
+        ),
+      ],
+    );
+  }
 
   static String _sessionModality(dynamic value) =>
       switch ((value ?? '').toString().trim().toLowerCase()) {
-        'musculacao' || 'musculação' || 'strength' => 'Musculação',
+        'musculacao' ||
+        'muscula\u00e7\u00e3o' ||
+        'strength' => 'Muscula\u00e7\u00e3o',
         'corrida' || 'running' => 'Corrida',
         'cycling' || 'ciclismo' => 'Ciclismo',
         'walking' || 'caminhada' => 'Caminhada',
         final value when value.isEmpty => 'Treino',
         final value => value[0].toUpperCase() + value.substring(1),
       };
-
   static String _sessionDate(dynamic value) {
     final raw = (value ?? '').toString();
     final date = DateTime.tryParse(raw)?.toLocal();
-    if (date == null) return raw.isEmpty ? 'Data não informada' : raw;
-    final day = date.day.toString().padLeft(2, '0');
-    final month = date.month.toString().padLeft(2, '0');
-    return '$day/$month/${date.year}';
+    if (date == null) return raw.isEmpty ? 'Data n\u00e3o informada' : raw;
+    return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
   }
 }
 

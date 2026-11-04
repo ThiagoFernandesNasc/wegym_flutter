@@ -60,20 +60,108 @@ const defaultAchievements = [
     xpReward: 250,
     criteria: { type: 'total_workouts', value: 100 },
   },
+  {
+    key: 'wegym_5_workouts',
+    title: 'Ritmo em Constru\u00e7\u00e3o',
+    description: 'Complete cinco treinos registrados.',
+    icon: '\u{1F525}',
+    category: 'workouts',
+    xpReward: 75,
+    criteria: { type: 'total_workouts', value: 5, role: 'atleta' },
+  },
+  {
+    key: 'wegym_25_workouts',
+    title: 'Disciplina de Ferro',
+    description: 'Complete 25 treinos registrados.',
+    icon: '\u{1F3CB}',
+    category: 'workouts',
+    xpReward: 150,
+    criteria: { type: 'total_workouts', value: 25, role: 'atleta' },
+  },
+  {
+    key: 'wegym_50km',
+    title: 'Rota em Expans\u00e3o',
+    description: 'Some 50 km em atividades registradas.',
+    icon: '\u{1F6E4}',
+    category: 'distance',
+    xpReward: 200,
+    criteria: { type: 'total_distance_km', value: 50, role: 'atleta' },
+  },
+  {
+    key: 'wegym_100km',
+    title: 'Horizonte Aberto',
+    description: 'Some 100 km em atividades registradas.',
+    icon: '\u{1F3C3}',
+    category: 'distance',
+    xpReward: 300,
+    criteria: { type: 'total_distance_km', value: 100, role: 'atleta' },
+  },
+  {
+    key: 'wegym_coach_first_athlete',
+    title: 'Primeiro Acompanhamento',
+    description: 'Vincule seu primeiro aluno ao seu perfil de personal.',
+    icon: '\u{1F91D}',
+    category: 'coaching',
+    xpReward: 50,
+    criteria: { type: 'total_coached_athletes', value: 1, role: 'personal' },
+  },
+  {
+    key: 'wegym_coach_5_athletes',
+    title: 'Equipe em Forma',
+    description: 'Acompanhe cinco alunos vinculados.',
+    icon: '\u{1F465}',
+    category: 'coaching',
+    xpReward: 100,
+    criteria: { type: 'total_coached_athletes', value: 5, role: 'personal' },
+  },
+  {
+    key: 'wegym_coach_10_athletes',
+    title: 'Coach de Destaque',
+    description: 'Acompanhe dez alunos vinculados.',
+    icon: '\u{1F3C5}',
+    category: 'coaching',
+    xpReward: 200,
+    criteria: { type: 'total_coached_athletes', value: 10, role: 'personal' },
+  },
+  {
+    key: 'wegym_coach_25_athletes',
+    title: 'Refer\u00eancia em Treinamento',
+    description: 'Acompanhe 25 alunos vinculados.',
+    icon: '\u{1F3C6}',
+    category: 'coaching',
+    xpReward: 350,
+    criteria: { type: 'total_coached_athletes', value: 25, role: 'personal' },
+  },
+  {
+    key: 'wegym_coach_50_athletes',
+    title: 'Lideran\u00e7a de Elite',
+    description: 'Acompanhe 50 alunos vinculados.',
+    icon: '\u{1F451}',
+    category: 'coaching',
+    xpReward: 500,
+    criteria: { type: 'total_coached_athletes', value: 50, role: 'personal' },
+  },
+  {
+    key: 'wegym_coach_100_athletes',
+    title: 'Legado WeGYM',
+    description: 'Acompanhe 100 alunos vinculados.',
+    icon: '\u{1F31F}',
+    category: 'coaching',
+    xpReward: 1000,
+    criteria: { type: 'total_coached_athletes', value: 100, role: 'personal' },
+  }
 ];
 
 let defaultChallengesReady = false;
-let defaultAchievementsReady = false;
 
 export const gamificationService = {
   async getAchievements() {
-    if (!defaultAchievementsReady) {
-      await prisma.achievement.createMany({
-        data: defaultAchievements,
-        skipDuplicates: true,
-      });
-      defaultAchievementsReady = true;
-    }
+    // Idempotently add new catalog entries even when the server stayed running
+    // while the app was updated.
+    await prisma.achievement.createMany({
+      data: defaultAchievements,
+      skipDuplicates: true,
+    });
     return prisma.achievement.findMany({ orderBy: { xpReward: 'asc' } });
   },
 
@@ -102,6 +190,14 @@ export const gamificationService = {
         skipDuplicates: true,
       });
     }
+  },
+
+  async checkPersonalAchievements(userId: string, personalId: string) {
+    const athleteCount = await prisma.athlete.count({ where: { personalId } });
+    await this.checkAndAward(userId, {
+      type: 'total_coached_athletes',
+      value: athleteCount,
+    });
   },
 
   async checkWorkoutAchievements(userId: string, athleteId: string) {
@@ -148,7 +244,17 @@ export const gamificationService = {
     return prisma.challengeParticipant.findMany({
       where: { challengeId },
       orderBy: { currentValue: 'desc' },
-      include: { user: { select: { id: true, displayName: true, avatarUrl: true } } },
+      include: {
+        user: {
+          select: {
+            id: true,
+            displayName: true,
+            avatarUrl: true,
+            athlete: { select: { name: true } },
+            personal: { select: { name: true } },
+          },
+        },
+      },
     });
   },
 
@@ -213,7 +319,14 @@ export const gamificationService = {
           select: {
             userId: true,
             currentValue: true,
-            user: { select: { displayName: true, avatarUrl: true } },
+            user: {
+              select: {
+                displayName: true,
+                avatarUrl: true,
+                athlete: { select: { name: true } },
+                personal: { select: { name: true } },
+              },
+            },
           },
         },
       },

@@ -9,13 +9,16 @@ export async function GET(request: Request) {
   try {
     const session = await authenticate();
     const { searchParams } = new URL(request.url);
-    if (searchParams.get('feed') === 'friends') {
-      const posts = await socialService.getFeedForUser(session.user.id);
-      return json(posts);
-    }
     const page = Number(searchParams.get('page')) || 1;
-    const posts = await socialService.getFeed(page);
-    return json(posts);
+    const posts = searchParams.get('feed') === 'friends'
+      ? await socialService.getFeedForUser(session.user.id)
+      : await socialService.getFeed(page);
+
+    // Send the caller's like state without exposing every liker user ID.
+    return json(posts.map(({ likes, ...post }) => ({
+      ...post,
+      likedByCurrentUser: likes.some((like) => like.userId === session.user.id),
+    })));
   } catch (error) { return handleError(error); }
 }
 

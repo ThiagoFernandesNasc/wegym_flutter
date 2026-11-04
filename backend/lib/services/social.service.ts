@@ -6,6 +6,14 @@ export const socialService = {
     return prisma.socialPost.create({ data: { userId, ...data } });
   },
 
+  async deletePost(postId: string, userId: string) {
+    const result = await prisma.socialPost.deleteMany({
+      where: { id: postId, userId },
+    });
+    if (result.count === 0) throw new NotFoundError('Publicação');
+    return { deleted: true };
+  },
+
   async getFeed(page = 1, limit = 20) {
     const skip = (page - 1) * limit;
     return prisma.socialPost.findMany({
@@ -21,8 +29,9 @@ export const socialService = {
           },
         },
         likes: { select: { userId: true } },
-        comments: { select: { id: true, text: true, userId: true, createdAt: true, user: {
+        comments: { select: { id: true, text: true, imageUrl: true, userId: true, createdAt: true, user: {
             select: {
+              id: true,
               displayName: true,
               athlete: { select: { name: true } },
               personal: { select: { name: true } },
@@ -52,8 +61,9 @@ export const socialService = {
           },
         },
         likes: { select: { userId: true } },
-        comments: { select: { id: true, text: true, userId: true, createdAt: true, user: {
+        comments: { select: { id: true, text: true, imageUrl: true, userId: true, createdAt: true, user: {
             select: {
+              id: true,
               displayName: true,
               athlete: { select: { name: true } },
               personal: { select: { name: true } },
@@ -76,8 +86,16 @@ export const socialService = {
     });
   },
 
-  async addComment(postId: string, userId: string, text: string) {
-    return prisma.socialComment.create({ data: { postId, userId, text } });
+  async addComment(postId: string, userId: string, data: { text: string; imageUrl?: string }) {
+    return prisma.socialComment.create({ data: { postId, userId, ...data } });
+  },
+
+  async deleteComment(postId: string, commentId: string, userId: string) {
+    const result = await prisma.socialComment.deleteMany({
+      where: { id: commentId, postId, userId },
+    });
+    if (result.count === 0) throw new NotFoundError('Comentário');
+    return { deleted: true };
   },
 
   async sendFriendRequest(requesterId: string, addresseeId: string) {

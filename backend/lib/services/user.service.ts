@@ -76,6 +76,17 @@ export const userService = {
           create: {
             name: data.name,
             cref: crefValidation.cref ?? '',
+            cep: data.cep ?? null,
+            city: data.city ?? null,
+            state: data.state || null,
+            age: data.age ? Number(data.age) : null,
+            sex: data.sex ?? null,
+            heightCm: data.height ? Number(data.height) : null,
+            weightKg: data.weight ? Number(data.weight) : null,
+            experienceLevel: data.experienceLevel ?? null,
+            injury: data.injury ?? null,
+            healthIssues: data.healthIssues ?? null,
+            medications: data.medications ?? null,
           },
         },
       },
@@ -104,11 +115,21 @@ export const userService = {
               weightKg: true,
               sex: true,
               experienceLevel: true,
-              personal: { select: { userId: true } },
+              personal: {
+                select: {
+                  userId: true,
+                  name: true,
+                  user: { select: { displayName: true, avatarUrl: true } },
+                },
+              },
             },
           },
           personal: {
-            select: { id: true, name: true, cref: true },
+            select: {
+              id: true, name: true, cref: true, cep: true, city: true, state: true,
+              age: true, sex: true, heightCm: true, weightKg: true,
+              experienceLevel: true,
+            },
           },
         },
       });
@@ -126,6 +147,15 @@ export const userService = {
           ? {
               id: user.athlete.id,
               personalUserId: user.athlete.personal?.userId ?? null,
+              personal: user.athlete.personal
+                ? {
+                    id: user.athlete.personal.userId,
+                    name:
+                      user.athlete.personal.user.displayName ??
+                      user.athlete.personal.name,
+                    avatarUrl: user.athlete.personal.user.avatarUrl,
+                  }
+                : null,
               name: user.athlete.name,
               city: user.athlete.city,
               state: user.athlete.state,
@@ -137,7 +167,19 @@ export const userService = {
             }
           : null,
         personal: user.personal
-          ? { id: user.personal.id, name: user.personal.name, cref: user.personal.cref }
+          ? {
+              id: user.personal.id,
+              name: user.personal.name,
+              cref: user.personal.cref,
+              cep: user.personal.cep,
+              city: user.personal.city,
+              state: user.personal.state,
+              age: user.personal.age,
+              sex: user.personal.sex,
+              heightCm: user.personal.heightCm,
+              weightKg: user.personal.weightKg,
+              experienceLevel: user.personal.experienceLevel,
+            }
           : null,
         avatarPlaceholder,
         avatarUrl: user.avatarUrl,
