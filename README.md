@@ -38,6 +38,3 @@ Para executar no Brave com backend e escolher entre os modos Web e Mobile:
 
 A prévia abre com o seletor Web/Mobile; escolha Web para o layout amplo ou Mobile para visualizar a moldura do aparelho. Use `-NoDeviceFrame` para abrir diretamente no layout Web. Em celular físico, o Flutter ocupa a tela e responde à largura real, sem a moldura de demonstração. Para executar no Android, use `flutter run -d android`; para iOS, use macOS com Xcode e `flutter run -d ios`.
 
-## Material para a apresentação
-
-Consulte [README_APRESENTACAO.md](README_APRESENTACAO.md) para o roteiro, as funcionalidades a demonstrar, a comparação com o protótipo, a organização do código e as melhorias previstas.
