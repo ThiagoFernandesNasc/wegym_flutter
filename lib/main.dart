@@ -504,23 +504,24 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
           'userType': _userType,
           'name': _name.text.trim(),
           if (_userType == 'personal') 'cref': _credential.text.trim(),
-          if (_userType == 'atleta')
+          if (_userType == 'atleta') ...{
             'cpf': _credential.text.replaceAll(RegExp(r'\D'), ''),
-          'cep': _cep.text.trim(),
-          'city': _city.text.trim(),
-          'state': _state.text.trim().toUpperCase(),
-          'age': int.parse(_age.text),
-          'sex': _sex,
-          'height': _heightCentimeters(_height.text)!,
-          'weight': double.parse(_weight.text.replaceAll(',', '.')),
-          'experienceLevel': _experienceLevel,
-          'injury': _injury.text.trim().isEmpty ? null : _injury.text.trim(),
-          'healthIssues': _healthIssues.text.trim().isEmpty
-              ? null
-              : _healthIssues.text.trim(),
-          'medications': _medications.text.trim().isEmpty
-              ? null
-              : _medications.text.trim(),
+            'cep': _cep.text.trim(),
+            'city': _city.text.trim(),
+            'state': _state.text.trim().toUpperCase(),
+            'age': int.parse(_age.text),
+            'sex': _sex,
+            'height': _heightCentimeters(_height.text)!,
+            'weight': double.parse(_weight.text.replaceAll(',', '.')),
+            'experienceLevel': _experienceLevel,
+            'injury': _injury.text.trim().isEmpty ? null : _injury.text.trim(),
+            'healthIssues': _healthIssues.text.trim().isEmpty
+                ? null
+                : _healthIssues.text.trim(),
+            'medications': _medications.text.trim().isEmpty
+                ? null
+                : _medications.text.trim(),
+          },
           'termsAccepted': _acceptTerms,
           'privacyAccepted': _acceptPrivacy,
           'dataConsentAccepted': _acceptData,
@@ -1071,6 +1072,10 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                   leading: Icon(Icons.check_circle, color: positive),
                   title: Text('CREF validado'),
                 ),
+              if (_userType == 'personal' && _crefVerified) ...[
+                _field(_name, 'Nome', key: const ValueKey('signup-name')),
+                const SizedBox(height: 10),
+              ],
               if (_userType == 'atleta') ...[
                 _field(_name, 'Nome', key: const ValueKey('signup-name')),
                 const SizedBox(height: 10),

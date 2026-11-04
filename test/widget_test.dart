@@ -81,6 +81,44 @@ void main() {
     expect(find.text('CREF validado'), findsOneWidget);
     expect(find.text('E-mail'), findsWidgets);
     expect(find.text('CRIAR CONTA'), findsOneWidget);
+    for (final entry in const {
+      'signup-name': 'Personal de Teste',
+      'signup-email': 'personal@example.com',
+      'signup-password': 'treino123',
+      'signup-confirm-password': 'treino123',
+    }.entries) {
+      final field = find.byKey(ValueKey(entry.key));
+      await tester.ensureVisible(field);
+      await tester.enterText(field, entry.value);
+    }
+    for (final key in const [
+      'consent-terms',
+      'consent-privacy',
+      'consent-data',
+    ]) {
+      final consent = find.byKey(ValueKey(key));
+      await tester.ensureVisible(consent);
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.descendant(of: consent, matching: find.byType(Checkbox)),
+      );
+      await tester.pump();
+    }
+    await tester.ensureVisible(find.text('CRIAR CONTA'));
+    await tester.tap(find.text('CRIAR CONTA'));
+    await _pumpUi(tester);
+    final registration = requests.singleWhere(
+      (request) => request.path == '/api/auth/register',
+    );
+    expect(registration.body?['name'], 'Personal de Teste');
+    expect(registration.body?['userType'], 'personal');
+    expect(registration.body?['cref'], '000000-0/SP');
+    expect(registration.body?.containsKey('age'), isFalse);
+    expect(registration.body?.containsKey('weight'), isFalse);
+    expect(registration.body?.containsKey('cpf'), isFalse);
+    expect(find.text('Painel do Personal'), findsOneWidget);
+    await tester.tap(find.text('PULAR'));
+    await _pumpUi(tester);
     expect(
       requests.where((request) => request.path == '/api/cref/validate'),
       hasLength(2),
@@ -298,53 +336,51 @@ void main() {
     expect(find.textContaining('COMUNIDADE'), findsWidgets);
   });
 
-  testWidgets(
-    'AI assistant requests a workout and renders Gemini exercises',
-    (tester) async {
-      final requests = _installAppApi();
-      tester.view.physicalSize = const Size(390, 844);
-      tester.view.devicePixelRatio = 1;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
+  testWidgets('AI assistant requests a workout and renders Gemini exercises', (
+    tester,
+  ) async {
+    final requests = _installAppApi();
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
 
-      await tester.pumpWidget(
-        const MaterialApp(home: AppShell(onLogout: _noopLogout)),
-      );
-      await _pumpUi(tester);
-      await tester.tap(find.text('ASSISTENTE IA'));
-      await _pumpUi(tester);
+    await tester.pumpWidget(
+      const MaterialApp(home: AppShell(onLogout: _noopLogout)),
+    );
+    await _pumpUi(tester);
+    await tester.tap(find.text('ASSISTENTE IA'));
+    await _pumpUi(tester);
 
-      final input = find.byWidgetPredicate(
-        (widget) =>
-            widget is TextField &&
-            widget.decoration?.hintText == 'Descreva seu objetivo de treino...',
-      );
-      await tester.enterText(input, 'Monte um treino de peito');
-      await tester.tap(find.byTooltip('Enviar mensagem'));
-      await _pumpUi(tester);
+    final input = find.byWidgetPredicate(
+      (widget) =>
+          widget is TextField &&
+          widget.decoration?.hintText == 'Descreva seu objetivo de treino...',
+    );
+    await tester.enterText(input, 'Monte um treino de peito');
+    await tester.tap(find.byTooltip('Enviar mensagem'));
+    await _pumpUi(tester);
 
-      expect(find.text('Sugestao de treino criada.'), findsOneWidget);
-      expect(find.text('Supino reto com barra'), findsOneWidget);
-      expect(
-        requests.any(
-          (request) =>
-              request.path == '/api/chat' &&
-              request.method == 'POST' &&
-              request.body?['message'] == 'Monte um treino de peito' &&
-              request.body?['level'] == 'Intermedi\u00e1rio',
-        ),
-        isTrue,
-      );
-      await tester.tap(find.text('INICIAR TREINO SUGERIDO'));
-      await _pumpUi(tester);
-      expect(find.text('TEMPO DE TREINO'), findsOneWidget);
-      expect(find.text('EXERCÍCIOS DO TREINO'), findsOneWidget);
-      expect(find.text('Supino reto com barra'), findsOneWidget);
-      expect(find.text('TREINO EM ANDAMENTO'), findsOneWidget);
-      expect(tester.takeException(), isNull);
-    },
-    skip: isPreview,
-  );
+    expect(find.text('Sugestao de treino criada.'), findsOneWidget);
+    expect(find.text('Supino reto com barra'), findsOneWidget);
+    expect(
+      requests.any(
+        (request) =>
+            request.path == '/api/chat' &&
+            request.method == 'POST' &&
+            request.body?['message'] == 'Monte um treino de peito' &&
+            request.body?['level'] == 'Intermedi\u00e1rio',
+      ),
+      isTrue,
+    );
+    await tester.tap(find.text('INICIAR TREINO SUGERIDO'));
+    await _pumpUi(tester);
+    expect(find.text('TEMPO DE TREINO'), findsOneWidget);
+    expect(find.text('EXERCÍCIOS DO TREINO'), findsOneWidget);
+    expect(find.text('Supino reto com barra'), findsOneWidget);
+    expect(find.text('TREINO EM ANDAMENTO'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  }, skip: isPreview);
 
   testWidgets('BLE monitor renders at compact and wide widths', (tester) async {
     addTearDown(tester.view.resetPhysicalSize);

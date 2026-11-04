@@ -44,3 +44,9 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Local credentials and duplicated extraction
+.env
+.env.*
+!.env.example
+/wegym_flutter-main/
