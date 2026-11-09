@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wegym_flutter/api.dart';
 import 'package:wegym_flutter/challenge_leaderboard_page.dart';
 import 'package:wegym_flutter/figma_modules.dart';
@@ -37,6 +38,7 @@ void main() {
 
   setUp(() {
     FlutterSecureStorage.setMockInitialValues({});
+    SharedPreferences.setMockInitialValues({});
     ProfileDataExport.saveHandler = null;
     integrationReturnLink.value = null;
     role = 'atleta';
@@ -169,14 +171,14 @@ void main() {
               'id': 'achievement-1',
               'title': 'Primeira semana',
               'description': 'Complete sete dias de treino.',
-              'icon': '🏋️',
+              'icon': 'ðŸ‹ï¸',
               'xpReward': 100,
             },
             {
               'id': 'achievement-2',
               'title': 'Novo recorde',
               'description': 'Supere sua melhor marca.',
-              'icon': '🏆',
+              'icon': 'ðŸ†',
               'xpReward': 150,
             },
           ],
@@ -598,30 +600,28 @@ void main() {
     );
   }, skip: _isPreview);
 
-  testWidgets(
-    'achievement catalog distinguishes earned and locked rewards',
-    (tester) async {
-      tester.view.physicalSize = const Size(390, 844);
-      tester.view.devicePixelRatio = 1;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-      await tester.pumpWidget(
-        const MaterialApp(
-          home: Scaffold(body: FigmaModulePage(module: 'Conquistas')),
-        ),
-      );
-      await _pumpUi(tester);
+  testWidgets('achievement catalog distinguishes earned and locked rewards', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(body: FigmaModulePage(module: 'Conquistas')),
+      ),
+    );
+    await _pumpUi(tester);
 
-      expect(find.text('Primeira semana'), findsOneWidget);
-      expect(find.text('Novo recorde'), findsOneWidget);
-      expect(find.text('CONQUISTADAS'), findsOneWidget);
-      expect(find.text('BLOQUEADA'), findsWidgets);
-      expect(find.text('EM 30/10/2026'), findsOneWidget);
-      expect(find.text('100'), findsOneWidget);
-      expect(tester.takeException(), isNull);
-    },
-    skip: _isPreview,
-  );
+    expect(find.text('Primeira semana'), findsOneWidget);
+    expect(find.text('Novo recorde'), findsOneWidget);
+    expect(find.text('CONQUISTADAS'), findsOneWidget);
+    expect(find.text('BLOQUEADA'), findsWidgets);
+    expect(find.text('EM 30/10/2026'), findsOneWidget);
+    expect(find.text('100'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  }, skip: _isPreview);
 
   testWidgets('profile exports backend data as a JSON file', (tester) async {
     tester.view.physicalSize = const Size(390, 844);
@@ -903,40 +903,33 @@ void main() {
     expect(tester.takeException(), isNull);
   }, skip: _isPreview);
 
-  testWidgets(
-    'profile shows account identity and explains avatar limitation',
-    (tester) async {
-      tester.view.physicalSize = const Size(390, 844);
-      tester.view.devicePixelRatio = 1;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
+  testWidgets('profile shows account identity and photo action', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
 
-      await tester.pumpWidget(
-        const MaterialApp(
-          home: Scaffold(
-            body: FigmaModulePage(module: 'Perfil & Configura\u00e7\u00f5es'),
-          ),
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: FigmaModulePage(module: 'Perfil & Configura\u00e7\u00f5es'),
         ),
-      );
-      await _pumpUi(tester);
+      ),
+    );
+    await _pumpUi(tester);
 
-      expect(find.text('IDENTIDADE'), findsOneWidget);
-      expect(find.text('Pessoa de teste'), findsOneWidget);
-      expect(find.text('Atleta'), findsOneWidget);
-      expect(
-        find.byKey(const ValueKey('profile-avatar-fallback')),
-        findsOneWidget,
-      );
-      await tester.tap(find.byTooltip('Alterar foto (em breve)'));
-      await tester.pump();
-      expect(
-        find.text('A troca da foto de perfil ainda não está disponível.'),
-        findsOneWidget,
-      );
-      expect(tester.takeException(), isNull);
-    },
-    skip: _isPreview,
-  );
+    expect(find.text('IDENTIDADE'), findsOneWidget);
+    expect(find.text('Pessoa de teste'), findsOneWidget);
+    expect(find.text('Atleta'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('profile-avatar-fallback')),
+      findsOneWidget,
+    );
+    expect(find.byTooltip('Alterar foto de perfil'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  }, skip: _isPreview);
 
   testWidgets('PWA install fallback explains browser menu steps', (
     tester,
@@ -977,39 +970,34 @@ void main() {
     expect(tester.takeException(), isNull);
   }, skip: _isPreview);
 
-  testWidgets(
-    'chat opens a conversation and sends a message to its contact',
-    (tester) async {
-      await tester.pumpWidget(
-        const MaterialApp(
-          home: Scaffold(body: FigmaModulePage(module: 'Chat')),
-        ),
-      );
-      await _pumpUi(tester);
-      await tester.tap(find.text('ABRIR'));
-      await _pumpUi(tester);
-      expect(find.text('Mensagem de teste'), findsOneWidget);
-      expect(find.text('14:05'), findsOneWidget);
-      expect(
-        calls.any((call) => call.path == '/api/messages/contact-1'),
-        isTrue,
-      );
-      await tester.enterText(find.byType(TextField).last, 'Olá, coach');
-      await tester.tap(find.text('ENVIAR'));
-      await _pumpUi(tester);
-      expect(
-        calls.any(
-          (call) =>
-              call.path == '/api/messages' &&
-              call.method == 'POST' &&
-              call.body?['text'] == 'Olá, coach' &&
-              call.body?['receiverId'] == 'contact-1',
-        ),
-        isTrue,
-      );
-    },
-    skip: _isPreview,
-  );
+  testWidgets('chat opens a conversation and sends a message to its contact', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(body: FigmaModulePage(module: 'Chat')),
+      ),
+    );
+    await _pumpUi(tester);
+    await tester.tap(find.text('ABRIR'));
+    await _pumpUi(tester);
+    expect(find.text('Mensagem de teste'), findsOneWidget);
+    expect(find.text('14:05'), findsOneWidget);
+    expect(calls.any((call) => call.path == '/api/messages/contact-1'), isTrue);
+    await tester.enterText(find.byType(TextField).last, 'Olá, coach');
+    await tester.tap(find.text('ENVIAR'));
+    await _pumpUi(tester);
+    expect(
+      calls.any(
+        (call) =>
+            call.path == '/api/messages' &&
+            call.method == 'POST' &&
+            call.body?['text'] == 'Olá, coach' &&
+            call.body?['receiverId'] == 'contact-1',
+      ),
+      isTrue,
+    );
+  }, skip: _isPreview);
 
   testWidgets('program detail adapts to mobile and desktop widths', (
     tester,
@@ -1139,7 +1127,7 @@ void main() {
     await tester.tap(join);
     await _pumpUi(tester);
 
-    expect(find.text('PARTICIPANDO'), findsOneWidget);
+    expect(find.text('SAIR'), findsOneWidget);
     expect(find.text('Atleta teste'), findsWidgets);
     expect(
       calls.any(
@@ -1288,135 +1276,130 @@ void main() {
     expect(tester.takeException(), isNull);
   }, skip: _isPreview);
 
-  testWidgets(
-    'Personal can create, edit and unlink students through the API',
-    (tester) async {
-      role = 'personal';
-      tester.view.physicalSize = const Size(1280, 900);
-      tester.view.devicePixelRatio = 1;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
+  testWidgets('Personal can create, edit and unlink students through the API', (
+    tester,
+  ) async {
+    role = 'personal';
+    tester.view.physicalSize = const Size(1280, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
 
-      await tester.pumpWidget(
-        const MaterialApp(
-          home: Scaffold(body: FigmaModulePage(module: 'Alunos & Personal')),
-        ),
-      );
-      await _pumpUi(tester);
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(body: FigmaModulePage(module: 'Alunos & Personal')),
+      ),
+    );
+    await _pumpUi(tester);
 
-      Future<void> fill(String field, String value) async {
-        final input = find.byKey(ValueKey('student-$field'));
-        await tester.ensureVisible(input);
-        await tester.enterText(input, value);
-      }
+    Future<void> fill(String field, String value) async {
+      final input = find.byKey(ValueKey('student-$field'));
+      await tester.ensureVisible(input);
+      await tester.enterText(input, value);
+    }
 
-      await tester.tap(find.text('NOVO ALUNO'));
-      await _pumpUi(tester);
-      await fill('name', 'Novo Atleta');
-      await fill('email', 'novo.atleta@example.com');
-      await fill('cpf', '52998224725');
-      await fill('height', '180');
-      await fill('weight', '82');
-      await fill('cep', '01001000');
-      await fill('city', 'Sao Paulo');
-      await fill('state', 'SP');
-      await tester.ensureVisible(find.text('CRIAR ALUNO'));
-      await tester.tap(find.text('CRIAR ALUNO'));
-      await _pumpUi(tester);
+    await tester.tap(find.text('NOVO ALUNO'));
+    await _pumpUi(tester);
+    await tester.tap(find.text('CADASTRAR NOVO'));
+    await _pumpUi(tester);
+    await fill('name', 'Novo Atleta');
+    await fill('email', 'novo.atleta@example.com');
+    await fill('cpf', '52998224725');
+    await fill('height', '180');
+    await fill('weight', '82');
+    await fill('cep', '01001000');
+    await fill('city', 'Sao Paulo');
+    await fill('state', 'SP');
+    await tester.ensureVisible(find.text('CRIAR ALUNO'));
+    await tester.tap(find.text('CRIAR ALUNO'));
+    await _pumpUi(tester);
 
-      expect(
-        calls.any(
-          (call) =>
-              call.path == '/api/athletes/register' &&
-              call.method == 'POST' &&
-              call.body?['name'] == 'Novo Atleta' &&
-              call.body?['sex'] == 'masculino' &&
-              call.body?['experienceLevel'] == 'iniciante',
-        ),
-        isTrue,
-      );
+    expect(
+      calls.any(
+        (call) =>
+            call.path == '/api/athletes/register' &&
+            call.method == 'POST' &&
+            call.body?['name'] == 'Novo Atleta' &&
+            call.body?['sex'] == 'masculino' &&
+            call.body?['experienceLevel'] == 'iniciante',
+      ),
+      isTrue,
+    );
 
-      await tester.tap(find.text('Atleta de teste').last);
-      await _pumpUi(tester);
-      await tester.tap(find.text('VER EVOLU\u00c7\u00c3O'));
-      await _pumpUi(tester);
-      expect(
-        find.textContaining('Avalia\u00e7\u00e3o inicial'),
-        findsOneWidget,
-      );
-      expect(
-        calls.any((call) => call.path == '/api/progress?athleteId=athlete-1'),
-        isTrue,
-      );
+    await tester.tap(find.text('Atleta de teste').last);
+    await _pumpUi(tester);
+    await tester.tap(find.text('VER EVOLU\u00c7\u00c3O'));
+    await _pumpUi(tester);
+    expect(find.textContaining('Avalia\u00e7\u00e3o inicial'), findsOneWidget);
+    expect(
+      calls.any((call) => call.path == '/api/progress?athleteId=athlete-1'),
+      isTrue,
+    );
 
-      await tester.tap(find.text('REGISTRAR AVALIA\u00c7\u00c3O'));
-      await _pumpUi(tester);
-      await fill('progress-weight', '81.5');
-      await fill('progress-muscle', '33');
-      await fill('progress-body-fat', '17.5');
-      await fill('progress-note', 'Nova avaliacao');
-      await tester.ensureVisible(find.text('SALVAR AVALIA\u00c7\u00c3O'));
-      await tester.tap(find.text('SALVAR AVALIA\u00c7\u00c3O'));
-      await _pumpUi(tester);
-      expect(
-        calls.any(
-          (call) =>
-              call.path == '/api/progress' &&
-              call.method == 'POST' &&
-              call.body?['athleteId'] == 'athlete-1' &&
-              call.body?['weight'] == 81.5 &&
-              call.body?['muscleMass'] == 33.0 &&
-              call.body?['bodyFat'] == 17.5 &&
-              call.body?['note'] == 'Nova avaliacao' &&
-              call.body?['date'] != null,
-        ),
-        isTrue,
-      );
-      await tester.tap(find.text('FECHAR'));
-      await _pumpUi(tester);
+    await tester.tap(find.text('REGISTRAR AVALIA\u00c7\u00c3O'));
+    await _pumpUi(tester);
+    await fill('progress-weight', '81.5');
+    await fill('progress-muscle', '33');
+    await fill('progress-body-fat', '17.5');
+    await fill('progress-note', 'Nova avaliacao');
+    await tester.ensureVisible(find.text('SALVAR AVALIA\u00c7\u00c3O'));
+    await tester.tap(find.text('SALVAR AVALIA\u00c7\u00c3O'));
+    await _pumpUi(tester);
+    expect(
+      calls.any(
+        (call) =>
+            call.path == '/api/progress' &&
+            call.method == 'POST' &&
+            call.body?['athleteId'] == 'athlete-1' &&
+            call.body?['weight'] == 81.5 &&
+            call.body?['muscleMass'] == 33.0 &&
+            call.body?['bodyFat'] == 17.5 &&
+            call.body?['note'] == 'Nova avaliacao' &&
+            call.body?['date'] != null,
+      ),
+      isTrue,
+    );
+    await tester.tap(find.text('FECHAR'));
+    await _pumpUi(tester);
 
-      final studentActions = find.byTooltip(
-        'A\u00e7\u00f5es de Atleta de teste',
-      );
-      await tester.ensureVisible(studentActions);
-      await tester.tap(studentActions);
-      await _pumpUi(tester);
-      await tester.tap(find.text('Editar dados'));
-      await _pumpUi(tester);
-      await fill('objective', 'Forca e condicionamento');
-      await tester.ensureVisible(find.text('SALVAR ALTERA\u00c7\u00d5ES'));
-      await tester.tap(find.text('SALVAR ALTERA\u00c7\u00d5ES'));
-      await _pumpUi(tester);
+    final studentActions = find.byTooltip('A\u00e7\u00f5es de Atleta de teste');
+    await tester.ensureVisible(studentActions);
+    await tester.tap(studentActions);
+    await _pumpUi(tester);
+    await tester.tap(find.text('Editar dados'));
+    await _pumpUi(tester);
+    await fill('objective', 'Forca e condicionamento');
+    await tester.ensureVisible(find.text('SALVAR ALTERA\u00c7\u00d5ES'));
+    await tester.tap(find.text('SALVAR ALTERA\u00c7\u00d5ES'));
+    await _pumpUi(tester);
 
-      expect(
-        calls.any(
-          (call) =>
-              call.path == '/api/athletes/athlete-1' &&
-              call.method == 'PATCH' &&
-              call.body?['objective'] == 'Forca e condicionamento',
-        ),
-        isTrue,
-      );
+    expect(
+      calls.any(
+        (call) =>
+            call.path == '/api/athletes/athlete-1' &&
+            call.method == 'PATCH' &&
+            call.body?['objective'] == 'Forca e condicionamento',
+      ),
+      isTrue,
+    );
 
-      await tester.ensureVisible(studentActions);
-      await tester.tap(studentActions);
-      await _pumpUi(tester);
-      await tester.tap(find.text('Desvincular do Personal'));
-      await _pumpUi(tester);
-      await tester.tap(find.text('DESVINCULAR'));
-      await _pumpUi(tester);
+    await tester.ensureVisible(studentActions);
+    await tester.tap(studentActions);
+    await _pumpUi(tester);
+    await tester.tap(find.text('Desvincular do Personal'));
+    await _pumpUi(tester);
+    await tester.tap(find.text('DESVINCULAR'));
+    await _pumpUi(tester);
 
-      expect(
-        calls.any(
-          (call) =>
-              call.path == '/api/athletes/athlete-1' && call.method == 'DELETE',
-        ),
-        isTrue,
-      );
-      expect(tester.takeException(), isNull);
-    },
-    skip: _isPreview,
-  );
+    expect(
+      calls.any(
+        (call) =>
+            call.path == '/api/athletes/athlete-1' && call.method == 'DELETE',
+      ),
+      isTrue,
+    );
+    expect(tester.takeException(), isNull);
+  }, skip: _isPreview);
 
   testWidgets('Personal list loads the next athlete page from its cursor', (
     tester,
@@ -1534,49 +1517,47 @@ void main() {
     expect(tester.takeException(), isNull);
   }, skip: _isPreview);
 
-  testWidgets(
-    'friends screen sends email invites and responds to requests',
-    (tester) async {
-      await tester.pumpWidget(
-        const MaterialApp(
-          home: Scaffold(body: FigmaModulePage(module: 'Amigos')),
-        ),
-      );
-      await _pumpUi(tester);
+  testWidgets('friends screen sends email invites and responds to requests', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(body: FigmaModulePage(module: 'Amigos')),
+      ),
+    );
+    await _pumpUi(tester);
 
-      expect(find.text('Lucas Mendes'), findsOneWidget);
-      expect(find.text('Amiga existente'), findsOneWidget);
-      await tester.tap(find.byTooltip('Aceitar solicitação de Lucas Mendes'));
-      await _pumpUi(tester);
-      expect(
-        calls.any(
-          (call) =>
-              call.path == '/api/friends' &&
-              call.method == 'POST' &&
-              call.body?['action'] == 'respond' &&
-              call.body?['friendshipId'] == 'friendship-1' &&
-              call.body?['response'] == 'accept',
-        ),
-        isTrue,
-      );
-      expect(find.text('Nenhuma solicitação pendente.'), findsOneWidget);
+    expect(find.text('Lucas Mendes'), findsOneWidget);
+    expect(find.text('Amiga existente'), findsOneWidget);
+    await tester.tap(find.byTooltip('Aceitar solicitação de Lucas Mendes'));
+    await _pumpUi(tester);
+    expect(
+      calls.any(
+        (call) =>
+            call.path == '/api/friends' &&
+            call.method == 'POST' &&
+            call.body?['action'] == 'respond' &&
+            call.body?['friendshipId'] == 'friendship-1' &&
+            call.body?['response'] == 'accept',
+      ),
+      isTrue,
+    );
+    expect(find.text('Nenhuma solicitação pendente.'), findsOneWidget);
 
-      await tester.tap(find.text('ADICIONAR AMIGO'));
-      await _pumpUi(tester);
-      await tester.enterText(find.byType(TextField).last, 'novo@example.com');
-      await tester.tap(find.text('CONTINUAR'));
-      await _pumpUi(tester);
-      expect(
-        calls.any(
-          (call) =>
-              call.path == '/api/friends' &&
-              call.method == 'POST' &&
-              call.body?['addresseeEmail'] == 'novo@example.com',
-        ),
-        isTrue,
-      );
-      expect(tester.takeException(), isNull);
-    },
-    skip: _isPreview,
-  );
+    await tester.tap(find.text('ADICIONAR AMIGO'));
+    await _pumpUi(tester);
+    await tester.enterText(find.byType(TextField).last, 'novo@example.com');
+    await tester.tap(find.text('CONTINUAR'));
+    await _pumpUi(tester);
+    expect(
+      calls.any(
+        (call) =>
+            call.path == '/api/friends' &&
+            call.method == 'POST' &&
+            call.body?['addresseeEmail'] == 'novo@example.com',
+      ),
+      isTrue,
+    );
+    expect(tester.takeException(), isNull);
+  }, skip: _isPreview);
 }

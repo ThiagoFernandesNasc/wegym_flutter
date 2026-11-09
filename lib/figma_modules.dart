@@ -4145,49 +4145,53 @@ class _FigmaModulePageState extends State<FigmaModulePage> {
       if (_text(student['phone']).trim().isNotEmpty)
         _text(student['phone']).trim(),
     ];
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      decoration: BoxDecoration(
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Material(
         color: _mRaised,
         borderRadius: BorderRadius.circular(11),
-      ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-        leading: CircleAvatar(
-          backgroundColor: _mOrange.withValues(alpha: .14),
-          foregroundColor: _mOrange,
-          child: Text(title.substring(0, 1).toUpperCase()),
-        ),
-        title: Text(
-          title,
-          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
-        ),
-        subtitle: Text(
-          details.isEmpty ? 'Aluno vinculado' : details.join(' \u2022 '),
-          style: const TextStyle(color: _mMuted, fontSize: 11),
-        ),
-        onTap: () => _showStudentDetails(student),
-        trailing: PopupMenuButton<String>(
-          tooltip: 'A\u00e7\u00f5es de $title',
-          enabled: !_busy,
-          onSelected: (action) {
-            switch (action) {
-              case 'details':
-                _showStudentDetails(student);
-              case 'edit':
-                _showStudentForm(student: student);
-              case 'unlink':
-                _unlinkStudent(student);
-            }
-          },
-          itemBuilder: (context) => [
-            const PopupMenuItem(value: 'details', child: Text('Ver ficha')),
-            const PopupMenuItem(value: 'edit', child: Text('Editar dados')),
-            const PopupMenuItem(
-              value: 'unlink',
-              child: Text('Desvincular do Personal'),
-            ),
-          ],
+        clipBehavior: Clip.antiAlias,
+        child: ListTile(
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 12,
+            vertical: 2,
+          ),
+          leading: CircleAvatar(
+            backgroundColor: _mOrange.withValues(alpha: .14),
+            foregroundColor: _mOrange,
+            child: Text(title.substring(0, 1).toUpperCase()),
+          ),
+          title: Text(
+            title,
+            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+          ),
+          subtitle: Text(
+            details.isEmpty ? 'Aluno vinculado' : details.join(' \u2022 '),
+            style: const TextStyle(color: _mMuted, fontSize: 11),
+          ),
+          onTap: () => _showStudentDetails(student),
+          trailing: PopupMenuButton<String>(
+            tooltip: 'A\u00e7\u00f5es de $title',
+            enabled: !_busy,
+            onSelected: (action) {
+              switch (action) {
+                case 'details':
+                  _showStudentDetails(student);
+                case 'edit':
+                  _showStudentForm(student: student);
+                case 'unlink':
+                  _unlinkStudent(student);
+              }
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(value: 'details', child: Text('Ver ficha')),
+              const PopupMenuItem(value: 'edit', child: Text('Editar dados')),
+              const PopupMenuItem(
+                value: 'unlink',
+                child: Text('Desvincular do Personal'),
+              ),
+            ],
+          ),
         ),
       ),
     );

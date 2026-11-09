@@ -60,7 +60,9 @@ void main() {
     await tester.ensureVisible(find.text('CRIAR CONTA').last);
     await tester.tap(find.text('CRIAR CONTA').last);
     await _pumpUi(tester);
-    await tester.tap(find.text('Personal').last);
+    final personalChoice = find.text('Personal').last;
+    await tester.ensureVisible(personalChoice);
+    await tester.tap(personalChoice);
     await _pumpUi(tester);
 
     expect(find.byKey(const ValueKey('validate-cref')), findsOneWidget);
@@ -98,7 +100,7 @@ void main() {
     ]) {
       final consent = find.byKey(ValueKey(key));
       await tester.ensureVisible(consent);
-      await tester.pumpAndSettle();
+      await _pumpUi(tester);
       await tester.tap(
         find.descendant(of: consent, matching: find.byType(Checkbox)),
       );
@@ -199,7 +201,7 @@ void main() {
     ]) {
       final consent = find.byKey(ValueKey(consentKey));
       await tester.ensureVisible(consent);
-      await tester.pumpAndSettle();
+      await _pumpUi(tester);
       final checkbox = find.descendant(
         of: consent,
         matching: find.byType(Checkbox),
@@ -212,7 +214,7 @@ void main() {
     await _pumpUi(tester);
     expect(find.text('Bem-vindo ao WEGYM'), findsOneWidget);
     await tester.tap(find.text('PULAR'));
-    await tester.pumpAndSettle();
+    await _pumpUi(tester);
 
     expect(registration?['userType'], 'atleta');
     expect(registration?['cpf'], '52998224725');

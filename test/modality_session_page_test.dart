@@ -47,14 +47,21 @@ void main() {
 
     await tester.pumpWidget(const MaterialApp(home: ModalitySessionPage()));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('INICIAR / RETOMAR'));
+    final startButton = find.text('INICIAR / RETOMAR');
+    await tester.drag(find.byType(ListView), const Offset(0, -1000));
+    await tester.pumpAndSettle();
+    await tester.tap(startButton);
     await tester.runAsync(
       () => Future<void>.delayed(const Duration(milliseconds: 1100)),
     );
     await tester.pump(const Duration(milliseconds: 250));
-    await tester.ensureVisible(find.text('REGISTRAR VOLTA'));
-    await tester.tap(find.text('REGISTRAR VOLTA'));
-    await tester.ensureVisible(find.text('CONCLUIR E SALVAR'));
+    final lapButton = find.text('REGISTRAR VOLTA');
+    await tester.drag(find.byType(ListView), const Offset(0, -200));
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.tap(lapButton);
+    final finishButton = find.text('CONCLUIR E SALVAR');
+    await tester.drag(find.byType(ListView), const Offset(0, -200));
+    await tester.pump(const Duration(milliseconds: 300));
     // The session ticker keeps scheduling frames until completion.
     await tester.pump();
     await tester.tap(find.text('CONCLUIR E SALVAR'));

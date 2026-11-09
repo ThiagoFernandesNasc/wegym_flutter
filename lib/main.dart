@@ -932,757 +932,777 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
     ),
     child: Padding(
       padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 28),
-      child: Form(
-        key: _formKey,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            if (!_register) ...[
-              _roleAccessSelector(),
-              const SizedBox(height: 18),
-            ],
-            Wrap(
-              alignment: WrapAlignment.spaceBetween,
-              children: const [
-                Tag('PORTAL DO ATLETA WEGYM'),
-                Text(
-                  'AUTH V2.4',
-                  style: TextStyle(
-                    color: softText,
-                    fontSize: 9,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
+      child: Material(
+        color: Colors.transparent,
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (!_register) ...[
+                _roleAccessSelector(),
+                const SizedBox(height: 18),
               ],
-            ),
-            const SizedBox(height: 10),
-            Text(
-              _register ? 'CRIE SUA CONTA' : 'LOGIN',
-              style: const TextStyle(
-                color: lightText,
-                fontSize: 29,
-                height: 1.05,
-                fontWeight: FontWeight.w900,
-                fontStyle: FontStyle.italic,
-              ),
-            ),
-            const SizedBox(height: 5),
-            Text(
-              _register
-                  ? 'Comece seu acompanhamento no WeGYM.'
-                  : 'Pronto para o treino de hoje?',
-              style: const TextStyle(
-                color: softText,
-                fontSize: 12,
-                height: 1.45,
-              ),
-            ),
-            if (!_register) ...[
-              const SizedBox(height: 12),
-              const Text(
-                'Escolha o perfil de acesso e use os dados da conta correspondente.',
-                style: TextStyle(color: softText, fontSize: 11),
-              ),
-            ],
-            if (!_register) ...[
-              const SizedBox(height: 14),
-              Row(
-                children: [
-                  _providerButton(
-                    'Google Account',
-                    Icons.g_mobiledata,
-                    Colors.lightBlue,
+              Wrap(
+                alignment: WrapAlignment.spaceBetween,
+                children: const [
+                  Tag('PORTAL DO ATLETA WEGYM'),
+                  Text(
+                    'AUTH V2.4',
+                    style: TextStyle(
+                      color: softText,
+                      fontSize: 9,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
-                  const SizedBox(width: 10),
-                  _providerButton('Apple ID', Icons.apple, lightText),
                 ],
-              ),
-              const SizedBox(height: 14),
-              const Row(
-                children: [
-                  Expanded(child: Divider(color: Colors.white12)),
-                  Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 10),
-                    child: Text(
-                      'OU COM IDENTIFICAÇÃO WEGYM',
-                      style: TextStyle(
-                        color: softText,
-                        fontSize: 8,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: .5,
-                      ),
-                    ),
-                  ),
-                  Expanded(child: Divider(color: Colors.white12)),
-                ],
-              ),
-            ],
-            const SizedBox(height: 16),
-            if (_register) ...[
-              SegmentedButton<String>(
-                segments: const [
-                  ButtonSegment(value: 'atleta', label: Text('Atleta')),
-                  ButtonSegment(value: 'personal', label: Text('Personal')),
-                ],
-                selected: {_userType},
-                onSelectionChanged: (v) => setState(() {
-                  _userType = v.first;
-                  _credential.clear();
-                  _verifiedCrefValue = null;
-                  _acceptTerms = false;
-                  _acceptPrivacy = false;
-                  _acceptData = false;
-                  _error = '';
-                }),
-              ),
-              const SizedBox(height: 12),
-              if (_userType == 'personal' && !_crefVerified) ...[
-                _field(
-                  _credential,
-                  'CREF',
-                  key: const ValueKey('signup-credential'),
-                  onChanged: (value) {
-                    if (_verifiedCrefValue != value.trim().toUpperCase()) {
-                      setState(() {
-                        _verifiedCrefValue = null;
-                        _error = '';
-                      });
-                    }
-                  },
-                ),
-                const SizedBox(height: 8),
-                OutlinedButton.icon(
-                  key: const ValueKey('validate-cref'),
-                  onPressed: _busy || _verifyingCref ? null : _verifyCref,
-                  icon: _verifyingCref
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.verified_user_outlined),
-                  label: Text(
-                    _verifyingCref ? 'VALIDANDO CREF' : 'VALIDAR CREF',
-                  ),
-                ),
-              ],
-              if (_userType == 'personal' && _crefVerified)
-                const ListTile(
-                  dense: true,
-                  leading: Icon(Icons.check_circle, color: positive),
-                  title: Text('CREF validado'),
-                ),
-              if (_userType == 'personal' && _crefVerified) ...[
-                _field(_name, 'Nome', key: const ValueKey('signup-name')),
-                const SizedBox(height: 10),
-              ],
-              if (_userType == 'atleta') ...[
-                _field(_name, 'Nome', key: const ValueKey('signup-name')),
-                const SizedBox(height: 10),
-                _field(
-                  _credential,
-                  'CPF',
-                  key: const ValueKey('signup-credential'),
-                  keyboard: TextInputType.number,
-                  validator: (value) {
-                    final digits = (value ?? '').replaceAll(RegExp(r'\D'), '');
-                    return digits.length == 11
-                        ? null
-                        : 'Informe um CPF com 11 d\u00edgitos.';
-                  },
-                ),
-                const SizedBox(height: 10),
-                _field(
-                  _cep,
-                  'CEP',
-                  key: const ValueKey('signup-cep'),
-                  keyboard: TextInputType.number,
-                  validator: (value) {
-                    final digits = (value ?? '').replaceAll(RegExp(r'\D'), '');
-                    return digits.length == 8
-                        ? null
-                        : 'Informe um CEP v\u00e1lido.';
-                  },
-                  onChanged: (value) {
-                    _cepLookupGeneration++;
-                    if (value.replaceAll(RegExp(r'\D'), '').length == 8) {
-                      unawaited(_lookupCep(value));
-                    } else {
-                      setState(() {
-                        _lookingUpCep = false;
-                        _cepNotice = '';
-                      });
-                    }
-                  },
-                ),
-                if (_lookingUpCep) const LinearProgressIndicator(minHeight: 2),
-                if (_cepNotice.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: Text(
-                      _cepNotice,
-                      style: const TextStyle(color: softText, fontSize: 10),
-                    ),
-                  ),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    Expanded(
-                      flex: 3,
-                      child: _field(
-                        _city,
-                        'Cidade',
-                        key: const ValueKey('signup-city'),
-                        validator: (value) =>
-                            (value?.trim().isNotEmpty ?? false)
-                            ? null
-                            : 'Informe a cidade.',
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: _field(
-                        _state,
-                        'UF',
-                        key: const ValueKey('signup-state'),
-                        validator: (value) => (value?.trim().length ?? 0) == 2
-                            ? null
-                            : 'Use a sigla do estado.',
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _field(
-                        _age,
-                        'Idade',
-                        key: const ValueKey('signup-age'),
-                        keyboard: TextInputType.number,
-                        validator: (value) {
-                          final age = int.tryParse(value ?? '');
-                          return age != null && age >= 12 && age <= 120
-                              ? null
-                              : 'Use uma idade entre 12 e 120.';
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: _field(
-                        _height,
-                        'Altura (m ou cm)',
-                        key: const ValueKey('signup-height'),
-                        keyboard: const TextInputType.numberWithOptions(
-                          decimal: true,
-                        ),
-                        validator: (value) {
-                          final height = _heightCentimeters(value ?? '');
-                          return height != null && height >= 50 && height <= 250
-                              ? null
-                              : 'Informe entre 0,50 e 2,50 m (ou 50 a 250 cm).';
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: _field(
-                        _weight,
-                        'Peso (kg)',
-                        key: const ValueKey('signup-weight'),
-                        keyboard: const TextInputType.numberWithOptions(
-                          decimal: true,
-                        ),
-                        validator: (value) {
-                          final weight = double.tryParse(
-                            (value ?? '').replaceAll(',', '.'),
-                          );
-                          return weight != null && weight >= 20 && weight <= 400
-                              ? null
-                              : 'Use peso entre 20 e 400 kg.';
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                DropdownButtonFormField<String>(
-                  key: const ValueKey('signup-sex'),
-                  initialValue: _sex,
-                  decoration: const InputDecoration(labelText: 'Sexo'),
-                  items: const [
-                    DropdownMenuItem(
-                      value: 'masculino',
-                      child: Text('Masculino'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'feminino',
-                      child: Text('Feminino'),
-                    ),
-                    DropdownMenuItem(value: 'outro', child: Text('Outro')),
-                  ],
-                  validator: (value) =>
-                      value == null ? 'Selecione uma op\u00e7\u00e3o.' : null,
-                  onChanged: (value) => setState(() => _sex = value),
-                ),
-                const SizedBox(height: 10),
-                DropdownButtonFormField<String>(
-                  key: const ValueKey('signup-experience'),
-                  initialValue: _experienceLevel,
-                  decoration: const InputDecoration(
-                    labelText: 'Experi\u00eancia',
-                  ),
-                  items: const [
-                    DropdownMenuItem(
-                      value: 'iniciante',
-                      child: Text('Iniciante'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'intermediario',
-                      child: Text('Intermedi\u00e1rio'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'avancado',
-                      child: Text('Avan\u00e7ado'),
-                    ),
-                  ],
-                  validator: (value) =>
-                      value == null ? 'Selecione o n\u00edvel.' : null,
-                  onChanged: (value) =>
-                      setState(() => _experienceLevel = value),
-                ),
-                const SizedBox(height: 10),
-                _field(_injury, 'Les\u00f5es (opcional)'),
-                const SizedBox(height: 10),
-                _field(
-                  _healthIssues,
-                  'Condi\u00e7\u00f5es de sa\u00fade (opcional)',
-                ),
-                const SizedBox(height: 10),
-                _field(_medications, 'Medicamentos (opcional)'),
-              ],
-            ],
-            if (!_register || _userType == 'atleta' || _crefVerified) ...[
-              if (!_register)
-                _loginFieldLabel(
-                  'E-MAIL INSTITUCIONAL OU MATRÍCULA',
-                  trailing: '#WG-CODE',
-                ),
-              _field(
-                _email,
-                'E-mail',
-                key: _register ? const ValueKey('signup-email') : null,
-                keyboard: TextInputType.emailAddress,
-                textInputAction: TextInputAction.next,
-                onFieldSubmitted: (_) => FocusScope.of(context).nextFocus(),
-                externalLabel: !_register,
-                hint: _register ? null : 'ex.: nome@atleta.com ou #WG-9842',
               ),
               const SizedBox(height: 10),
-              if (!_register) _loginFieldLabel('CHAVE DE ACESSO / SENHA'),
-              _field(
-                _password,
-                'Senha',
-                key: _register ? const ValueKey('signup-password') : null,
-                secret: true,
-                textInputAction: _register
-                    ? TextInputAction.next
-                    : TextInputAction.done,
-                onFieldSubmitted: (_) =>
-                    _register ? FocusScope.of(context).nextFocus() : _submit(),
-                externalLabel: !_register,
-                hint: _register
-                    ? null
-                    : '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022',
+              Text(
+                _register ? 'CRIE SUA CONTA' : 'LOGIN',
+                style: const TextStyle(
+                  color: lightText,
+                  fontSize: 29,
+                  height: 1.05,
+                  fontWeight: FontWeight.w900,
+                  fontStyle: FontStyle.italic,
+                ),
               ),
-              if (_register) ...[
-                const SizedBox(height: 10),
-                _field(
-                  _confirmPassword,
-                  'Confirmar senha',
-                  key: const ValueKey('signup-confirm-password'),
-                  secret: true,
-                  textInputAction: TextInputAction.done,
-                  onFieldSubmitted: (_) => _submit(),
-                  validator: (value) => value == _password.text
-                      ? null
-                      : 'As senhas n\u00e3o coincidem.',
+              const SizedBox(height: 5),
+              Text(
+                _register
+                    ? 'Comece seu acompanhamento no WeGYM.'
+                    : 'Pronto para o treino de hoje?',
+                style: const TextStyle(
+                  color: softText,
+                  fontSize: 12,
+                  height: 1.45,
+                ),
+              ),
+              if (!_register) ...[
+                const SizedBox(height: 12),
+                const Text(
+                  'Escolha o perfil de acesso e use os dados da conta correspondente.',
+                  style: TextStyle(color: softText, fontSize: 11),
                 ),
               ],
-            ],
-            if (!_register)
-              Row(
-                children: [
-                  Checkbox(
-                    value: _remember,
-                    activeColor: accent,
-                    onChanged: (v) => setState(() => _remember = v ?? true),
-                  ),
-                  const Expanded(
-                    child: Text(
-                      'Permanecer conectado',
-                      style: TextStyle(color: softText, fontSize: 11),
+              if (!_register) ...[
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    _providerButton(
+                      'Google Account',
+                      Icons.g_mobiledata,
+                      Colors.lightBlue,
                     ),
-                  ),
-                  TextButton(
-                    onPressed: _busy ? null : _recover,
-                    child: const Text(
-                      'Esqueceu a senha?',
-                      style: TextStyle(fontSize: 10),
-                    ),
-                  ),
-                ],
-              ),
-            if (!_register &&
-                (_error.startsWith('Se a conta') ||
-                    _error.startsWith('Exception: Token')))
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton(
-                  onPressed: _busy ? null : _resetPasswordWithToken,
-                  child: const Text('Já tenho o token de redefinição'),
+                    const SizedBox(width: 10),
+                    _providerButton('Apple ID', Icons.apple, lightText),
+                  ],
                 ),
-              ),
-            if (_register && (_userType == 'atleta' || _crefVerified))
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const Padding(
-                    padding: EdgeInsets.only(left: 8, top: 4, bottom: 4),
-                    child: Text(
-                      'CONSENTIMENTOS LGPD',
-                      style: TextStyle(
-                        color: softText,
-                        fontSize: 9,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: .5,
-                      ),
-                    ),
-                  ),
-                  CheckboxListTile(
-                    key: const ValueKey('consent-terms'),
-                    value: _acceptTerms,
-                    onChanged: (value) =>
-                        setState(() => _acceptTerms = value ?? false),
-                    activeColor: accent,
-                    controlAffinity: ListTileControlAffinity.leading,
-                    contentPadding: EdgeInsets.zero,
-                    dense: true,
-                    visualDensity: VisualDensity.compact,
-                    title: Wrap(
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        const Text(
-                          'Li e aceito os ',
-                          style: TextStyle(color: softText, fontSize: 10),
-                        ),
-                        const LegalDocumentLink(
-                          buttonKey: ValueKey('legal-link-terms-signup'),
-                          kind: LegalDocumentKind.terms,
-                          label: 'Termos de Uso',
-                          compact: true,
-                        ),
-                      ],
-                    ),
-                  ),
-                  CheckboxListTile(
-                    key: const ValueKey('consent-privacy'),
-                    value: _acceptPrivacy,
-                    onChanged: (value) =>
-                        setState(() => _acceptPrivacy = value ?? false),
-                    activeColor: accent,
-                    controlAffinity: ListTileControlAffinity.leading,
-                    contentPadding: EdgeInsets.zero,
-                    dense: true,
-                    visualDensity: VisualDensity.compact,
-                    title: Wrap(
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        const Text(
-                          'Li e aceito a ',
-                          style: TextStyle(color: softText, fontSize: 10),
-                        ),
-                        const LegalDocumentLink(
-                          buttonKey: ValueKey('legal-link-privacy-signup'),
-                          kind: LegalDocumentKind.privacy,
-                          label: 'Pol\u00edtica de Privacidade',
-                          compact: true,
-                        ),
-                      ],
-                    ),
-                  ),
-                  CheckboxListTile(
-                    key: const ValueKey('consent-data'),
-                    value: _acceptData,
-                    onChanged: (value) =>
-                        setState(() => _acceptData = value ?? false),
-                    activeColor: accent,
-                    controlAffinity: ListTileControlAffinity.leading,
-                    contentPadding: EdgeInsets.zero,
-                    dense: true,
-                    visualDensity: VisualDensity.compact,
-                    title: const Text(
-                      'Autorizo o tratamento dos meus dados pessoais (LGPD)',
-                      style: TextStyle(color: softText, fontSize: 10),
-                    ),
-                  ),
-                ],
-              ),
-            AnimatedSwitcher(
-              duration: const Duration(milliseconds: 220),
-              transitionBuilder: (child, animation) => FadeTransition(
-                opacity: animation,
-                child: SlideTransition(
-                  position: Tween<Offset>(
-                    begin: const Offset(0, -.12),
-                    end: Offset.zero,
-                  ).animate(animation),
-                  child: child,
-                ),
-              ),
-              child: _error.isEmpty
-                  ? const SizedBox.shrink(key: ValueKey('login-error-empty'))
-                  : Padding(
-                      key: ValueKey(_error),
-                      padding: const EdgeInsets.only(top: 8),
+                const SizedBox(height: 14),
+                const Row(
+                  children: [
+                    Expanded(child: Divider(color: Colors.white12)),
+                    Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 10),
                       child: Text(
-                        _error,
+                        'OU COM IDENTIFICAÇÃO WEGYM',
                         style: TextStyle(
-                          color:
-                              _error.startsWith('Se a conta') ||
-                                  _error.startsWith('Cadastro')
-                              ? positive
-                              : Colors.redAccent,
-                          fontSize: 11,
+                          color: softText,
+                          fontSize: 8,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: .5,
                         ),
                       ),
                     ),
-            ),
-            const SizedBox(height: 8),
-            if (!_register || _userType != 'personal' || _crefVerified)
-              MouseRegion(
-                onEnter: (_) => setState(() => _submitHovered = true),
-                onExit: (_) => setState(() => _submitHovered = false),
-                child: Listener(
-                  onPointerDown: (_) => setState(() => _submitPressed = true),
-                  onPointerUp: (_) => setState(() => _submitPressed = false),
-                  onPointerCancel: (_) =>
-                      setState(() => _submitPressed = false),
-                  child: AnimatedScale(
-                    scale: _submitPressed
-                        ? .99
-                        : _submitHovered
-                        ? 1.01
-                        : 1,
-                    duration: const Duration(milliseconds: 130),
-                    curve: Curves.easeOut,
-                    child: SizedBox(
-                      height: 54,
-                      child: FilledButton.icon(
-                        onPressed: _busy ? null : _submit,
-                        icon: _busy
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : Icon(
-                                _register ? Icons.person_add_alt_1 : Icons.bolt,
-                              ),
-                        label: Text(
-                          _register ? 'CRIAR CONTA' : 'ENTRAR NO WEGYM OS',
-                        ),
-                        style: FilledButton.styleFrom(
-                          backgroundColor: accent,
-                          foregroundColor: stitchOnPrimaryContainer,
-                          elevation: 8,
-                          shadowColor: accent.withValues(alpha: .28),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(13),
-                          ),
-                          textStyle: const TextStyle(
-                            fontWeight: FontWeight.w900,
-                            fontStyle: FontStyle.italic,
-                          ),
-                        ),
-                      ),
+                    Expanded(child: Divider(color: Colors.white12)),
+                  ],
+                ),
+              ],
+              const SizedBox(height: 16),
+              if (_register) ...[
+                SegmentedButton<String>(
+                  segments: const [
+                    ButtonSegment(value: 'atleta', label: Text('Atleta')),
+                    ButtonSegment(value: 'personal', label: Text('Personal')),
+                  ],
+                  selected: {_userType},
+                  onSelectionChanged: (v) => setState(() {
+                    _userType = v.first;
+                    _credential.clear();
+                    _verifiedCrefValue = null;
+                    _acceptTerms = false;
+                    _acceptPrivacy = false;
+                    _acceptData = false;
+                    _error = '';
+                  }),
+                ),
+                const SizedBox(height: 12),
+                if (_userType == 'personal' && !_crefVerified) ...[
+                  _field(
+                    _credential,
+                    'CREF',
+                    key: const ValueKey('signup-credential'),
+                    onChanged: (value) {
+                      if (_verifiedCrefValue != value.trim().toUpperCase()) {
+                        setState(() {
+                          _verifiedCrefValue = null;
+                          _error = '';
+                        });
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    key: const ValueKey('validate-cref'),
+                    onPressed: _busy || _verifyingCref ? null : _verifyCref,
+                    icon: _verifyingCref
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.verified_user_outlined),
+                    label: Text(
+                      _verifyingCref ? 'VALIDANDO CREF' : 'VALIDAR CREF',
                     ),
                   ),
-                ),
-              ),
-            if (!_register) ...[
-              const SizedBox(height: 10),
-              OutlinedButton(
-                onPressed: () => _showUnavailableSignIn('Passkey / biometria'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: lightText,
-                  backgroundColor: const Color(0xFF101013),
-                  side: BorderSide(color: Colors.white.withValues(alpha: .05)),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 12,
+                ],
+                if (_userType == 'personal' && _crefVerified)
+                  const ListTile(
+                    dense: true,
+                    leading: Icon(Icons.check_circle, color: positive),
+                    title: Text('CREF validado'),
                   ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                if (_userType == 'personal' && _crefVerified) ...[
+                  _field(_name, 'Nome', key: const ValueKey('signup-name')),
+                  const SizedBox(height: 10),
+                ],
+                if (_userType == 'atleta') ...[
+                  _field(_name, 'Nome', key: const ValueKey('signup-name')),
+                  const SizedBox(height: 10),
+                  _field(
+                    _credential,
+                    'CPF',
+                    key: const ValueKey('signup-credential'),
+                    keyboard: TextInputType.number,
+                    validator: (value) {
+                      final digits = (value ?? '').replaceAll(
+                        RegExp(r'\D'),
+                        '',
+                      );
+                      return digits.length == 11
+                          ? null
+                          : 'Informe um CPF com 11 d\u00edgitos.';
+                    },
                   ),
+                  const SizedBox(height: 10),
+                  _field(
+                    _cep,
+                    'CEP',
+                    key: const ValueKey('signup-cep'),
+                    keyboard: TextInputType.number,
+                    validator: (value) {
+                      final digits = (value ?? '').replaceAll(
+                        RegExp(r'\D'),
+                        '',
+                      );
+                      return digits.length == 8
+                          ? null
+                          : 'Informe um CEP v\u00e1lido.';
+                    },
+                    onChanged: (value) {
+                      _cepLookupGeneration++;
+                      if (value.replaceAll(RegExp(r'\D'), '').length == 8) {
+                        unawaited(_lookupCep(value));
+                      } else {
+                        setState(() {
+                          _lookingUpCep = false;
+                          _cepNotice = '';
+                        });
+                      }
+                    },
+                  ),
+                  if (_lookingUpCep)
+                    const LinearProgressIndicator(minHeight: 2),
+                  if (_cepNotice.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(
+                        _cepNotice,
+                        style: const TextStyle(color: softText, fontSize: 10),
+                      ),
+                    ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        flex: 3,
+                        child: _field(
+                          _city,
+                          'Cidade',
+                          key: const ValueKey('signup-city'),
+                          validator: (value) =>
+                              (value?.trim().isNotEmpty ?? false)
+                              ? null
+                              : 'Informe a cidade.',
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _field(
+                          _state,
+                          'UF',
+                          key: const ValueKey('signup-state'),
+                          validator: (value) => (value?.trim().length ?? 0) == 2
+                              ? null
+                              : 'Use a sigla do estado.',
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _field(
+                          _age,
+                          'Idade',
+                          key: const ValueKey('signup-age'),
+                          keyboard: TextInputType.number,
+                          validator: (value) {
+                            final age = int.tryParse(value ?? '');
+                            return age != null && age >= 12 && age <= 120
+                                ? null
+                                : 'Use uma idade entre 12 e 120.';
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _field(
+                          _height,
+                          'Altura (m ou cm)',
+                          key: const ValueKey('signup-height'),
+                          keyboard: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          validator: (value) {
+                            final height = _heightCentimeters(value ?? '');
+                            return height != null &&
+                                    height >= 50 &&
+                                    height <= 250
+                                ? null
+                                : 'Informe entre 0,50 e 2,50 m (ou 50 a 250 cm).';
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _field(
+                          _weight,
+                          'Peso (kg)',
+                          key: const ValueKey('signup-weight'),
+                          keyboard: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          validator: (value) {
+                            final weight = double.tryParse(
+                              (value ?? '').replaceAll(',', '.'),
+                            );
+                            return weight != null &&
+                                    weight >= 20 &&
+                                    weight <= 400
+                                ? null
+                                : 'Use peso entre 20 e 400 kg.';
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  DropdownButtonFormField<String>(
+                    key: const ValueKey('signup-sex'),
+                    initialValue: _sex,
+                    decoration: const InputDecoration(labelText: 'Sexo'),
+                    items: const [
+                      DropdownMenuItem(
+                        value: 'masculino',
+                        child: Text('Masculino'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'feminino',
+                        child: Text('Feminino'),
+                      ),
+                      DropdownMenuItem(value: 'outro', child: Text('Outro')),
+                    ],
+                    validator: (value) =>
+                        value == null ? 'Selecione uma op\u00e7\u00e3o.' : null,
+                    onChanged: (value) => setState(() => _sex = value),
+                  ),
+                  const SizedBox(height: 10),
+                  DropdownButtonFormField<String>(
+                    key: const ValueKey('signup-experience'),
+                    initialValue: _experienceLevel,
+                    decoration: const InputDecoration(
+                      labelText: 'Experi\u00eancia',
+                    ),
+                    items: const [
+                      DropdownMenuItem(
+                        value: 'iniciante',
+                        child: Text('Iniciante'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'intermediario',
+                        child: Text('Intermedi\u00e1rio'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'avancado',
+                        child: Text('Avan\u00e7ado'),
+                      ),
+                    ],
+                    validator: (value) =>
+                        value == null ? 'Selecione o n\u00edvel.' : null,
+                    onChanged: (value) =>
+                        setState(() => _experienceLevel = value),
+                  ),
+                  const SizedBox(height: 10),
+                  _field(_injury, 'Les\u00f5es (opcional)'),
+                  const SizedBox(height: 10),
+                  _field(
+                    _healthIssues,
+                    'Condi\u00e7\u00f5es de sa\u00fade (opcional)',
+                  ),
+                  const SizedBox(height: 10),
+                  _field(_medications, 'Medicamentos (opcional)'),
+                ],
+              ],
+              if (!_register || _userType == 'atleta' || _crefVerified) ...[
+                if (!_register)
+                  _loginFieldLabel(
+                    'E-MAIL INSTITUCIONAL OU MATRÍCULA',
+                    trailing: '#WG-CODE',
+                  ),
+                _field(
+                  _email,
+                  'E-mail',
+                  key: _register ? const ValueKey('signup-email') : null,
+                  keyboard: TextInputType.emailAddress,
+                  textInputAction: TextInputAction.next,
+                  onFieldSubmitted: (_) => FocusScope.of(context).nextFocus(),
+                  externalLabel: !_register,
+                  hint: _register ? null : 'ex.: nome@atleta.com ou #WG-9842',
                 ),
-                child: const Row(
+                const SizedBox(height: 10),
+                if (!_register) _loginFieldLabel('CHAVE DE ACESSO / SENHA'),
+                _field(
+                  _password,
+                  'Senha',
+                  key: _register ? const ValueKey('signup-password') : null,
+                  secret: true,
+                  textInputAction: _register
+                      ? TextInputAction.next
+                      : TextInputAction.done,
+                  onFieldSubmitted: (_) => _register
+                      ? FocusScope.of(context).nextFocus()
+                      : _submit(),
+                  externalLabel: !_register,
+                  hint: _register
+                      ? null
+                      : '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022',
+                ),
+                if (_register) ...[
+                  const SizedBox(height: 10),
+                  _field(
+                    _confirmPassword,
+                    'Confirmar senha',
+                    key: const ValueKey('signup-confirm-password'),
+                    secret: true,
+                    textInputAction: TextInputAction.done,
+                    onFieldSubmitted: (_) => _submit(),
+                    validator: (value) => value == _password.text
+                        ? null
+                        : 'As senhas n\u00e3o coincidem.',
+                  ),
+                ],
+              ],
+              if (!_register)
+                Row(
                   children: [
-                    Icon(Icons.fingerprint, color: positive, size: 21),
-                    SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                    Checkbox(
+                      value: _remember,
+                      activeColor: accent,
+                      onChanged: (v) => setState(() => _remember = v ?? true),
+                    ),
+                    const Expanded(
+                      child: Text(
+                        'Permanecer conectado',
+                        style: TextStyle(color: softText, fontSize: 11),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: _busy ? null : _recover,
+                      child: const Text(
+                        'Esqueceu a senha?',
+                        style: TextStyle(fontSize: 10),
+                      ),
+                    ),
+                  ],
+                ),
+              if (!_register &&
+                  (_error.startsWith('Se a conta') ||
+                      _error.startsWith('Exception: Token')))
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: _busy ? null : _resetPasswordWithToken,
+                    child: const Text('Já tenho o token de redefinição'),
+                  ),
+                ),
+              if (_register && (_userType == 'atleta' || _crefVerified))
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Padding(
+                      padding: EdgeInsets.only(left: 8, top: 4, bottom: 4),
+                      child: Text(
+                        'CONSENTIMENTOS LGPD',
+                        style: TextStyle(
+                          color: softText,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: .5,
+                        ),
+                      ),
+                    ),
+                    CheckboxListTile(
+                      key: const ValueKey('consent-terms'),
+                      value: _acceptTerms,
+                      onChanged: (value) =>
+                          setState(() => _acceptTerms = value ?? false),
+                      activeColor: accent,
+                      controlAffinity: ListTileControlAffinity.leading,
+                      contentPadding: EdgeInsets.zero,
+                      dense: true,
+                      visualDensity: VisualDensity.compact,
+                      title: Wrap(
+                        crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
-                          Text(
-                            'Passkey / Biometria Facial',
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w900,
-                            ),
+                          const Text(
+                            'Li e aceito os ',
+                            style: TextStyle(color: softText, fontSize: 10),
                           ),
-                          SizedBox(height: 3),
-                          Text(
-                            'FIDO2 WebAuthn compatível',
-                            style: TextStyle(color: softText, fontSize: 9),
+                          const LegalDocumentLink(
+                            buttonKey: ValueKey('legal-link-terms-signup'),
+                            kind: LegalDocumentKind.terms,
+                            label: 'Termos de Uso',
+                            compact: true,
                           ),
                         ],
                       ),
                     ),
-                    Text(
-                      'USAR CHAVE',
-                      style: TextStyle(
-                        color: softText,
-                        fontSize: 8,
-                        fontWeight: FontWeight.w900,
+                    CheckboxListTile(
+                      key: const ValueKey('consent-privacy'),
+                      value: _acceptPrivacy,
+                      onChanged: (value) =>
+                          setState(() => _acceptPrivacy = value ?? false),
+                      activeColor: accent,
+                      controlAffinity: ListTileControlAffinity.leading,
+                      contentPadding: EdgeInsets.zero,
+                      dense: true,
+                      visualDensity: VisualDensity.compact,
+                      title: Wrap(
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          const Text(
+                            'Li e aceito a ',
+                            style: TextStyle(color: softText, fontSize: 10),
+                          ),
+                          const LegalDocumentLink(
+                            buttonKey: ValueKey('legal-link-privacy-signup'),
+                            kind: LegalDocumentKind.privacy,
+                            label: 'Pol\u00edtica de Privacidade',
+                            compact: true,
+                          ),
+                        ],
+                      ),
+                    ),
+                    CheckboxListTile(
+                      key: const ValueKey('consent-data'),
+                      value: _acceptData,
+                      onChanged: (value) =>
+                          setState(() => _acceptData = value ?? false),
+                      activeColor: accent,
+                      controlAffinity: ListTileControlAffinity.leading,
+                      contentPadding: EdgeInsets.zero,
+                      dense: true,
+                      visualDensity: VisualDensity.compact,
+                      title: const Text(
+                        'Autorizo o tratamento dos meus dados pessoais (LGPD)',
+                        style: TextStyle(color: softText, fontSize: 10),
                       ),
                     ),
                   ],
                 ),
-              ),
-              const SizedBox(height: 5),
-              Material(
-                color: Colors.transparent,
-                borderRadius: BorderRadius.circular(12),
-                child: Theme(
-                  data: Theme.of(
-                    context,
-                  ).copyWith(dividerColor: Colors.transparent),
-                  child: ExpansionTile(
-                    tilePadding: const EdgeInsets.symmetric(horizontal: 4),
-                    childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-                    leading: const Icon(
-                      Icons.desktop_windows_outlined,
-                      color: softText,
-                      size: 16,
-                    ),
-                    title: const Text(
-                      'Primeiro acesso na academia?',
-                      style: TextStyle(
-                        color: softText,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    children: [
-                      const Align(
-                        alignment: Alignment.centerLeft,
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 220),
+                transitionBuilder: (child, animation) => FadeTransition(
+                  opacity: animation,
+                  child: SlideTransition(
+                    position: Tween<Offset>(
+                      begin: const Offset(0, -.12),
+                      end: Offset.zero,
+                    ).animate(animation),
+                    child: child,
+                  ),
+                ),
+                child: _error.isEmpty
+                    ? const SizedBox.shrink(key: ValueKey('login-error-empty'))
+                    : Padding(
+                        key: ValueKey(_error),
+                        padding: const EdgeInsets.only(top: 8),
                         child: Text(
-                          'Crie seu perfil para começar a usar o WeGYM.',
-                          style: TextStyle(color: softText, fontSize: 10),
+                          _error,
+                          style: TextStyle(
+                            color:
+                                _error.startsWith('Se a conta') ||
+                                    _error.startsWith('Cadastro')
+                                ? positive
+                                : Colors.redAccent,
+                            fontSize: 11,
+                          ),
                         ),
                       ),
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: TextButton(
-                          onPressed: _busy
-                              ? null
-                              : () => _setRegisterMode(true),
-                          child: const Text('CRIAR CONTA'),
+              ),
+              const SizedBox(height: 8),
+              if (!_register || _userType != 'personal' || _crefVerified)
+                MouseRegion(
+                  onEnter: (_) => setState(() => _submitHovered = true),
+                  onExit: (_) => setState(() => _submitHovered = false),
+                  child: Listener(
+                    onPointerDown: (_) => setState(() => _submitPressed = true),
+                    onPointerUp: (_) => setState(() => _submitPressed = false),
+                    onPointerCancel: (_) =>
+                        setState(() => _submitPressed = false),
+                    child: AnimatedScale(
+                      scale: _submitPressed
+                          ? .99
+                          : _submitHovered
+                          ? 1.01
+                          : 1,
+                      duration: const Duration(milliseconds: 130),
+                      curve: Curves.easeOut,
+                      child: SizedBox(
+                        height: 54,
+                        child: FilledButton.icon(
+                          onPressed: _busy ? null : _submit,
+                          icon: _busy
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : Icon(
+                                  _register
+                                      ? Icons.person_add_alt_1
+                                      : Icons.bolt,
+                                ),
+                          label: Text(
+                            _register ? 'CRIAR CONTA' : 'ENTRAR NO WEGYM OS',
+                          ),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: accent,
+                            foregroundColor: stitchOnPrimaryContainer,
+                            elevation: 8,
+                            shadowColor: accent.withValues(alpha: .28),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(13),
+                            ),
+                            textStyle: const TextStyle(
+                              fontWeight: FontWeight.w900,
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              if (!_register) ...[
+                const SizedBox(height: 10),
+                OutlinedButton(
+                  onPressed: () =>
+                      _showUnavailableSignIn('Passkey / biometria'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: lightText,
+                    backgroundColor: const Color(0xFF101013),
+                    side: BorderSide(
+                      color: Colors.white.withValues(alpha: .05),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 12,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.fingerprint, color: positive, size: 21),
+                      SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Passkey / Biometria Facial',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                            SizedBox(height: 3),
+                            Text(
+                              'FIDO2 WebAuthn compatível',
+                              style: TextStyle(color: softText, fontSize: 9),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Text(
+                        'USAR CHAVE',
+                        style: TextStyle(
+                          color: softText,
+                          fontSize: 8,
+                          fontWeight: FontWeight.w900,
                         ),
                       ),
                     ],
                   ),
                 ),
-              ),
-            ],
-            const Divider(color: Colors.white12),
-            if (!_register && Api.isDemoSession) ...[
-              const Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  'ACESSOS PARA DEMONSTRA\u00C7\u00C3O',
-                  style: TextStyle(
-                    color: accent,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: .6,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  _demoCredentialCard(
-                    'ATLETA',
-                    'joao@wegym.com.br',
-                    onTap: () => _fillDemoAccount('atleta'),
-                  ),
-                  _demoCredentialCard(
-                    'PERSONAL',
-                    'personal@wegym.com.br',
-                    onTap: () => _fillDemoAccount('personal'),
-                  ),
-                ],
-              ),
-              const Padding(
-                padding: EdgeInsets.only(top: 6),
-                child: Text(
-                  'Senha para ambas as contas: 123456',
-                  style: TextStyle(color: softText, fontSize: 10),
-                ),
-              ),
-            ],
-            const SizedBox(height: 8),
-            Wrap(
-              alignment: WrapAlignment.spaceBetween,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              runSpacing: 2,
-              children: const [
-                Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 4, vertical: 6),
-                  child: Text(
-                    'E2E \u00b7 LGPD',
-                    style: TextStyle(color: softText, fontSize: 9),
-                  ),
-                ),
-                Wrap(
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    LegalDocumentLink(
-                      buttonKey: ValueKey('legal-link-terms-login'),
-                      kind: LegalDocumentKind.terms,
-                      label: 'TERMOS',
-                      compact: true,
+                const SizedBox(height: 5),
+                Material(
+                  color: Colors.transparent,
+                  borderRadius: BorderRadius.circular(12),
+                  child: Theme(
+                    data: Theme.of(
+                      context,
+                    ).copyWith(dividerColor: Colors.transparent),
+                    child: ExpansionTile(
+                      tilePadding: const EdgeInsets.symmetric(horizontal: 4),
+                      childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                      leading: const Icon(
+                        Icons.desktop_windows_outlined,
+                        color: softText,
+                        size: 16,
+                      ),
+                      title: const Text(
+                        'Primeiro acesso na academia?',
+                        style: TextStyle(
+                          color: softText,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      children: [
+                        const Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            'Crie seu perfil para começar a usar o WeGYM.',
+                            style: TextStyle(color: softText, fontSize: 10),
+                          ),
+                        ),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton(
+                            onPressed: _busy
+                                ? null
+                                : () => _setRegisterMode(true),
+                            child: const Text('CRIAR CONTA'),
+                          ),
+                        ),
+                      ],
                     ),
-                    Text('?', style: TextStyle(color: softText, fontSize: 9)),
-                    LegalDocumentLink(
-                      buttonKey: ValueKey('legal-link-privacy-login'),
-                      kind: LegalDocumentKind.privacy,
-                      label: 'PRIVACIDADE',
-                      compact: true,
+                  ),
+                ),
+              ],
+              const Divider(color: Colors.white12),
+              if (!_register && Api.isDemoSession) ...[
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'ACESSOS PARA DEMONSTRA\u00C7\u00C3O',
+                    style: TextStyle(
+                      color: accent,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: .6,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _demoCredentialCard(
+                      'ATLETA',
+                      'joao@wegym.com.br',
+                      onTap: () => _fillDemoAccount('atleta'),
+                    ),
+                    _demoCredentialCard(
+                      'PERSONAL',
+                      'personal@wegym.com.br',
+                      onTap: () => _fillDemoAccount('personal'),
                     ),
                   ],
                 ),
+                const Padding(
+                  padding: EdgeInsets.only(top: 6),
+                  child: Text(
+                    'Senha para ambas as contas: 123456',
+                    style: TextStyle(color: softText, fontSize: 10),
+                  ),
+                ),
               ],
-            ),
-          ],
+              const SizedBox(height: 8),
+              Wrap(
+                alignment: WrapAlignment.spaceBetween,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                runSpacing: 2,
+                children: const [
+                  Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+                    child: Text(
+                      'E2E \u00b7 LGPD',
+                      style: TextStyle(color: softText, fontSize: 9),
+                    ),
+                  ),
+                  Wrap(
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      LegalDocumentLink(
+                        buttonKey: ValueKey('legal-link-terms-login'),
+                        kind: LegalDocumentKind.terms,
+                        label: 'TERMOS',
+                        compact: true,
+                      ),
+                      Text('?', style: TextStyle(color: softText, fontSize: 9)),
+                      LegalDocumentLink(
+                        buttonKey: ValueKey('legal-link-privacy-login'),
+                        kind: LegalDocumentKind.privacy,
+                        label: 'PRIVACIDADE',
+                        compact: true,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     ),
@@ -1937,11 +1957,12 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                 borderRadius: BorderRadius.circular(24),
                 border: Border.all(color: positive.withValues(alpha: .22)),
               ),
-              child: const Row(
-                mainAxisSize: MainAxisSize.min,
+              child: const Wrap(
+                spacing: 8,
+                runSpacing: 4,
+                crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
                   Icon(Icons.circle, color: positive, size: 8),
-                  SizedBox(width: 8),
                   Text(
                     'ECOSSISTEMA ONLINE  •  RTT 18MS',
                     style: TextStyle(
@@ -2094,10 +2115,12 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
             const Spacer(),
             const Divider(color: Colors.white12),
             const SizedBox(height: 10),
-            const Row(
+            const Wrap(
+              spacing: 8,
+              runSpacing: 4,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 Icon(Icons.shield_outlined, color: positive, size: 15),
-                SizedBox(width: 8),
                 Text(
                   'ACESSO SEGURO  •  PRIVACIDADE PROTEGIDA',
                   style: TextStyle(
