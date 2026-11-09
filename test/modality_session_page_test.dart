@@ -64,7 +64,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     // The session ticker keeps scheduling frames until completion.
     await tester.pump();
-    await tester.tap(find.text('CONCLUIR E SALVAR'));
+    await tester.tap(finishButton);
     await tester.pumpAndSettle();
 
     expect(

@@ -254,11 +254,12 @@ class _AuthGateState extends State<AuthGate> {
         demoRole: _usingDemoData ? role : null,
         onLogout: () {
           unawaited(Api.clearPreviewState());
-          if (mounted)
+          if (mounted) {
             setState(() {
               _demoRole = null;
               _usingDemoData = false;
             });
+          }
         },
       );
     }
@@ -4074,8 +4075,9 @@ class _HistoryPageState extends State<HistoryPage> {
             _athleteId = null;
             _sessions = [];
           } else {
-            if (!_athletes.any((a) => a['id']?.toString() == _athleteId))
+            if (!_athletes.any((a) => a['id']?.toString() == _athleteId)) {
               _athleteId = _athletes.first['id']?.toString();
+            }
             final selected = _athletes.firstWhere(
               (a) => a['id']?.toString() == _athleteId,
             );
@@ -4116,9 +4118,10 @@ class _HistoryPageState extends State<HistoryPage> {
 
   @override
   Widget build(BuildContext context) {
-    if (_loading)
+    if (_loading) {
       return const Center(child: CircularProgressIndicator(color: accent));
-    if (_error != null)
+    }
+    if (_error != null) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
@@ -4129,6 +4132,7 @@ class _HistoryPageState extends State<HistoryPage> {
           ),
         ),
       );
+    }
     final totalSeconds = _sessions.fold<int>(
       0,
       (sum, item) => sum + amount(item['durationSec']).round(),

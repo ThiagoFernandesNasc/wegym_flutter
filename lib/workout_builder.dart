@@ -995,8 +995,7 @@ class _WorkoutBuilderPageState extends State<WorkoutBuilderPage> {
             physics: const NeverScrollableScrollPhysics(),
             buildDefaultDragHandles: false,
             itemCount: _exercises.length,
-            onReorder: (oldIndex, newIndex) => setState(() {
-              if (newIndex > oldIndex) newIndex--;
+            onReorderItem: (oldIndex, newIndex) => setState(() {
               final moved = _exercises.removeAt(oldIndex);
               _exercises.insert(newIndex, moved);
             }),

@@ -2584,8 +2584,9 @@ class _FigmaModulePageState extends State<FigmaModulePage> {
           : 'image/jpeg';
       return 'data:$mimeType;base64,${base64Encode(bytes)}';
     } catch (error) {
-      if (mounted)
+      if (mounted) {
         _showInfo('N\u00e3o foi poss\u00edvel selecionar a foto: $error');
+      }
       return null;
     }
   }
@@ -2832,11 +2833,12 @@ class _FigmaModulePageState extends State<FigmaModulePage> {
       if (demo) {
         _joinedChallengeIds.add(id);
         await Api.savePreviewChallengeIds(_joinedChallengeIds.toList());
-        if (mounted)
+        if (mounted) {
           setState(
             () => _notice =
                 'Participa\u00e7\u00e3o registrada nesta pr\u00e9via.',
           );
+        }
       } else {
         await Api.post('/api/challenges', {
           'challengeId': id,
@@ -2848,10 +2850,11 @@ class _FigmaModulePageState extends State<FigmaModulePage> {
         if (mounted) setState(() => _notice = 'Voc\u00ea entrou no desafio.');
       }
     } catch (error) {
-      if (mounted)
+      if (mounted) {
         setState(
           () => _notice = 'N\u00e3o foi poss\u00edvel participar: $error',
         );
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -2871,11 +2874,12 @@ class _FigmaModulePageState extends State<FigmaModulePage> {
       if (Api.isDemoSession) {
         _joinedChallengeIds.remove(id);
         await Api.savePreviewChallengeIds(_joinedChallengeIds.toList());
-        if (mounted)
+        if (mounted) {
           setState(() {
             _data = _load();
             _notice = 'Voc\u00ea saiu do desafio nesta pr\u00e9via.';
           });
+        }
       } else {
         final athleteQuery = selectedAthlete == null
             ? ''
@@ -2889,10 +2893,11 @@ class _FigmaModulePageState extends State<FigmaModulePage> {
         if (mounted) setState(() => _notice = 'Voc\u00ea saiu do desafio.');
       }
     } catch (error) {
-      if (mounted)
+      if (mounted) {
         setState(
           () => _notice = 'N\u00e3o foi poss\u00edvel sair do desafio: $error',
         );
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -2906,6 +2911,7 @@ class _FigmaModulePageState extends State<FigmaModulePage> {
       'Explique o objetivo do desafio',
     );
     if (description == null) return;
+    if (!mounted) return;
     const types = <(String, String, String)>[
       ('workouts', 'Treinos conclu\u00eddos', 'sess\u00f5es'),
       ('distance', 'Dist\u00e2ncia percorrida', 'km'),
@@ -2921,7 +2927,7 @@ class _FigmaModulePageState extends State<FigmaModulePage> {
             .map(
               (item) => SimpleDialogOption(
                 onPressed: () => Navigator.pop(dialogContext, item.$1),
-                child: Text(item.$2 + ' (' + item.$3 + ')'),
+                child: Text('${item.$2} (${item.$3})'),
               ),
             )
             .toList(),
@@ -2967,7 +2973,7 @@ class _FigmaModulePageState extends State<FigmaModulePage> {
     try {
       if (Api.isDemoSession) {
         final challenge = <String, dynamic>{
-          'id': 'preview-custom-' + startDate.microsecondsSinceEpoch.toString(),
+          'id': 'preview-custom-${startDate.microsecondsSinceEpoch}',
           'title': title.trim(),
           'name': title.trim(),
           'description': description.trim(),
@@ -2998,17 +3004,19 @@ class _FigmaModulePageState extends State<FigmaModulePage> {
         final id = _text(_map(result)['id']);
         if (id.isNotEmpty) _joinedChallengeIds.add(id);
         await _refresh();
-        if (mounted)
+        if (mounted) {
           setState(() {
             _notice =
                 'Desafio criado. Voc\u00ea j\u00e1 est\u00e1 participando.';
           });
+        }
       }
     } catch (error) {
-      if (mounted)
+      if (mounted) {
         setState(
           () => _notice = 'N\u00e3o foi poss\u00edvel criar o desafio: $error',
         );
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -3097,15 +3105,12 @@ class _FigmaModulePageState extends State<FigmaModulePage> {
                   if (challenge['goalValue'] != null) ...[
                     const SizedBox(height: 5),
                     Text(
-                      'Meta: ' +
-                          _n(challenge['goalValue']).toString() +
-                          ' ' +
-                          switch (_text(challenge['type'])) {
+                      'Meta: ${_n(challenge['goalValue'])} ${switch (_text(challenge['type'])) {
                             'distance' => 'km',
                             'workouts' => 'sess\u00f5es',
                             'calories' => 'kcal',
                             _ => 'pontos',
-                          },
+                          }}',
                       style: const TextStyle(color: _mMuted, fontSize: 12),
                     ),
                   ],
@@ -3114,9 +3119,7 @@ class _FigmaModulePageState extends State<FigmaModulePage> {
                     children: [
                       Expanded(
                         child: Text(
-                          (people.length + (demo && joined ? 1 : 0))
-                                  .toString() +
-                              ' participantes',
+                          '${people.length + (demo && joined ? 1 : 0)} participantes',
                           style: const TextStyle(fontWeight: FontWeight.w600),
                         ),
                       ),
@@ -3801,17 +3804,13 @@ class _FigmaModulePageState extends State<FigmaModulePage> {
         final normalizedQuery = _normalizeNutritionText(query);
         return initialFoods.where((food) {
           final text = _normalizeNutritionText(
-            (food['name'] ?? '').toString() +
-                ' ' +
-                (food['aliases'] ?? '').toString() +
-                ' ' +
-                (food['category'] ?? '').toString(),
+            '${food['name'] ?? ''} ${food['aliases'] ?? ''} ${food['category'] ?? ''}',
           );
           return text.contains(normalizedQuery);
         }).toList();
       }
       final response = await Api.get(
-        '/api/nutrition/foods?q=' + Uri.encodeQueryComponent(query),
+        '/api/nutrition/foods?q=${Uri.encodeQueryComponent(query)}',
       );
       return _list(
         response,
@@ -3937,7 +3936,7 @@ class _FigmaModulePageState extends State<FigmaModulePage> {
       final formatted = number == number.roundToDouble()
           ? number.round().toString()
           : number.toStringAsFixed(1);
-      return formatted + ' ' + unit;
+      return '$formatted $unit';
     }
 
     final title = _text(plan['title'] ?? plan['name']);
@@ -3986,12 +3985,9 @@ class _FigmaModulePageState extends State<FigmaModulePage> {
                   Padding(
                     padding: const EdgeInsets.only(top: 8),
                     child: Text(
-                      'Per\u00edodo: ' +
-                          _text(plan['startDate']).split('T').first +
-                          ' \u2014 ' +
-                          (_text(plan['endDate']).isEmpty
+                      'Per\u00edodo: ${_text(plan['startDate']).split('T').first} \u2014 ${_text(plan['endDate']).isEmpty
                               ? 'sem data final'
-                              : _text(plan['endDate']).split('T').first),
+                              : _text(plan['endDate']).split('T').first}',
                       style: const TextStyle(color: _mMuted, fontSize: 12),
                     ),
                   ),
@@ -4772,11 +4768,11 @@ class _FigmaModulePageState extends State<FigmaModulePage> {
             TextButton.icon(
               key: const ValueKey('personal-copilot-student'),
               onPressed: () {
-                Navigator.pop(dialogContext);
+                final navigator = Navigator.of(dialogContext);
+                navigator.pop();
                 WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (mounted) {
-                    showPersonalCopilot(context, student: details);
-                  }
+                  if (!mounted || !navigator.mounted) return;
+                  showPersonalCopilot(navigator.context, student: details);
                 });
               },
               icon: const Icon(Icons.auto_awesome, size: 16),
@@ -6931,15 +6927,16 @@ class _FigmaModulePageState extends State<FigmaModulePage> {
             Expanded(child: details),
           ],
         );
+        final alignedTail = tail == null
+            ? null
+            : Align(alignment: Alignment.centerRight, child: tail);
         if (compact) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               textRow,
-              if (tail != null) ...[
-                const SizedBox(height: 8),
-                Align(alignment: Alignment.centerRight, child: tail),
-              ],
+              if (alignedTail != null) const SizedBox(height: 8),
+              ?alignedTail,
             ],
           );
         }
@@ -6947,7 +6944,8 @@ class _FigmaModulePageState extends State<FigmaModulePage> {
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Expanded(child: textRow),
-            if (tail != null) ...[const SizedBox(width: 8), tail],
+            if (alignedTail != null) const SizedBox(width: 8),
+            ?alignedTail,
           ],
         );
       },
@@ -7150,7 +7148,7 @@ class _FigmaModulePageState extends State<FigmaModulePage> {
       posts.insert(0, {
         'id': 'preview-post-${DateTime.now().microsecondsSinceEpoch}',
         'text': text,
-        if (image != null) 'imageUrl': image,
+        'imageUrl': ?image,
         'createdAt': DateTime.now().toIso8601String(),
         'user': {
           'id': _currentUserId,
@@ -7174,7 +7172,7 @@ class _FigmaModulePageState extends State<FigmaModulePage> {
     await _run(
       () => Api.post('/api/social', {
         if (text.isNotEmpty) 'text': text,
-        if (image != null) 'imageUrl': image,
+        'imageUrl': ?image,
       }),
       'Publica??o enviada.',
     );
@@ -7317,7 +7315,7 @@ class _FigmaModulePageState extends State<FigmaModulePage> {
         ..add({
           'id': 'preview-comment-$timestamp',
           'text': text,
-          if (image != null) 'imageUrl': image,
+          'imageUrl': ?image,
           'userId': _currentUserId,
           'user': {
             'id': _currentUserId,
@@ -7343,7 +7341,7 @@ class _FigmaModulePageState extends State<FigmaModulePage> {
     await _run(
       () => Api.post('/api/social/$id/comment', {
         'text': text,
-        if (image != null) 'imageUrl': image,
+        'imageUrl': ?image,
       }),
       'Coment\u00e1rio enviado.',
     );
@@ -7419,7 +7417,9 @@ class _FigmaModulePageState extends State<FigmaModulePage> {
         }, 'Foto de perfil atualizada.');
       }
     } catch (error) {
-      if (mounted) _showInfo('Não foi possível selecionar a foto: $error');
+      if (mounted) {
+        _showInfo('Não foi possível selecionar a foto: $error');
+      }
     }
   }
 
@@ -7509,6 +7509,7 @@ class _FigmaModulePageState extends State<FigmaModulePage> {
   }
 
   Future<void> _openOAuthUrl(String value) async {
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
     try {
       final opened = await launchUrl(
         Uri.parse(value),
@@ -7517,7 +7518,7 @@ class _FigmaModulePageState extends State<FigmaModulePage> {
       if (!opened) throw StateError('Não foi possível abrir o navegador.');
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      scaffoldMessenger.showSnackBar(
         const SnackBar(
           content: Text(
             'Não foi possível abrir automaticamente. Copie o link exibido.',
@@ -7982,8 +7983,8 @@ class _FigmaModulePageState extends State<FigmaModulePage> {
     await _run(
       () => Api.post('/api/body-measurements', {
         'weight': weight,
-        if (muscleMass != null) 'muscleMass': muscleMass,
-        if (bodyFat != null) 'bodyFat': bodyFat,
+        'muscleMass': ?muscleMass,
+        'bodyFat': ?bodyFat,
         if (note.trim().isNotEmpty) 'note': note.trim(),
         'date': DateTime.now().toIso8601String(),
         if (_currentRole == 'personal')

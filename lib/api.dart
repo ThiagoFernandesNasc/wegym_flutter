@@ -404,8 +404,9 @@ class Api {
     String? athleteId,
   }) async {
     final query = <String, String>{'limit': '50'};
-    if (athleteId != null && athleteId.isNotEmpty)
+    if (athleteId != null && athleteId.isNotEmpty) {
       query['athleteId'] = athleteId;
+    }
     final uri = Uri(path: '/api/workout-sessions', queryParameters: query);
     final rows = (await request(uri.toString()) as Map)['data'];
     if (rows is! List) return [];
