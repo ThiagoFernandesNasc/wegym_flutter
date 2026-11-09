@@ -433,7 +433,7 @@ class _NutritionMealBuilderDialogState
                                 .toList(),
                           ),
                     icon: const Icon(Icons.check),
-                    label: Text('Adicionar ' + _selected.length.toString()),
+                    label: Text('Adicionar ${_selected.length}'),
                   ),
                 ],
               ),
@@ -509,7 +509,7 @@ class _NutritionMealBuilderDialogState
   );
 
   Widget _plateList() => _panel(
-    'No prato (' + _selected.length.toString() + ')',
+    'No prato (${_selected.length})',
     _selected.isEmpty
         ? const Center(
             child: Text(
@@ -602,7 +602,7 @@ class _NutritionMealBuilderDialogState
       borderRadius: BorderRadius.circular(10),
     ),
     child: Text(
-      label + ': ' + value.round().toString() + ' ' + unit,
+      '$label: ${value.round()} $unit',
       style: const TextStyle(color: stitchText, fontSize: 11),
     ),
   );

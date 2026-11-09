@@ -4166,7 +4166,7 @@ class _HistoryPageState extends State<HistoryPage> {
                             style: TextStyle(color: softText),
                           )
                         : DropdownButtonFormField<String>(
-                            value: _athleteId,
+                            initialValue: _athleteId,
                             decoration: const InputDecoration(
                               labelText: 'Consultar hist\u00f3rico de',
                             ),
